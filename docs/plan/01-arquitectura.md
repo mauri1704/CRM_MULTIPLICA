@@ -28,10 +28,10 @@
 
 Tres procesos, una base de datos, un solo repositorio (monorepo pnpm):
 
-| Proceso  | Responsabilidad                                                                    |
-| -------- | ---------------------------------------------------------------------------------- |
-| `web`    | Interfaz. No contiene reglas de negocio: todo se valida y decide en `api`.         |
-| `api`    | API REST, autenticación, permisos, reglas de negocio, transacciones, auditoría.    |
+| Proceso  | Responsabilidad                                                                   |
+| -------- | --------------------------------------------------------------------------------- |
+| `web`    | Interfaz. No contiene reglas de negocio: todo se valida y decide en `api`.        |
+| `api`    | API REST, autenticación, permisos, reglas de negocio, transacciones, auditoría.   |
 | `worker` | Trabajos lentos: importaciones, exportaciones grandes, purga de papelera, avisos. |
 
 El worker **no** es un motor de automatizaciones comerciales: solo ejecuta operaciones técnicas
@@ -40,26 +40,26 @@ aviso de tarea vencida) — ver [D-16].
 
 ## 2. Stack `[D-01]`
 
-| Capa             | Elección                                                                      | Por qué                                                                   |
-| ---------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| Lenguaje         | TypeScript strict en todo el repo                                             | Un solo lenguaje; tipos compartidos front/back                            |
-| Runtime          | Node.js 22 LTS · pnpm workspaces                                              | Igual que el resto de apps de Multiplica                                  |
-| Backend          | NestJS 11 + `@nestjs/swagger`                                                 | API REST documentada (requisito), módulos, guards de permisos, DI         |
-| Validación       | Zod (esquemas en `packages/shared`, usados por api y web)                     | Una sola fuente de verdad para validaciones                               |
-| ORM / BD         | Prisma 6 + PostgreSQL 16 (+ extensiones `pg_trgm`, `unaccent`, `citext`)      | Migraciones versionadas, transacciones; `pg_trgm` para duplicados         |
-| Dinero           | `decimal.js` en servidor, `numeric` en BD — nunca `float`                     | Precisión decimal exacta                                                  |
-| Cola             | pg-boss (sobre la misma PostgreSQL)                                           | Sin infraestructura extra (no Redis)                                      |
-| Frontend         | React 19 + Vite + React Router                                                | SPA rápida; el SEO no aplica a un CRM privado                             |
-| Datos en UI      | TanStack Query · TanStack Table (tablas configurables, virtualizadas)          | Caché, reintentos, columnas/orden/filtros configurables                   |
-| UI               | Tailwind CSS 3 + Radix UI (primitivas accesibles) + lucide-react (íconos)     | Accesibilidad por teclado y ARIA de serie                                 |
-| Formularios      | react-hook-form + zod resolver                                                | Mismos esquemas que el backend                                            |
-| Drag and drop    | dnd-kit                                                                       | Accesible por teclado, Kanban                                             |
-| Calendario       | FullCalendar (licencia MIT, vistas mes/semana/día)                            | Vista calendario de tareas                                                |
-| Gráficos         | Recharts                                                                      | Dashboard y reportes                                                      |
-| Excel / CSV      | `exceljs` (XLSX, por streaming) · `csv-parse` / `csv-stringify`                | Lectura/escritura en streaming para archivos grandes                      |
-| Auth             | Sesión en servidor (cookie `httpOnly`, `Secure`, `SameSite=Lax`) + argon2id   | Revocable al desactivar usuario; sin JWT en `localStorage`                |
-| Logs             | pino (JSON) con redacción de campos sensibles                                 |                                                                           |
-| Pruebas          | Vitest (unidad) · Vitest + Postgres real en Docker (integración) · Playwright (E2E) |                                                                      |
+| Capa          | Elección                                                                            | Por qué                                                           |
+| ------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Lenguaje      | TypeScript strict en todo el repo                                                   | Un solo lenguaje; tipos compartidos front/back                    |
+| Runtime       | Node.js 22 LTS · pnpm workspaces                                                    | Igual que el resto de apps de Multiplica                          |
+| Backend       | NestJS 11 + `@nestjs/swagger`                                                       | API REST documentada (requisito), módulos, guards de permisos, DI |
+| Validación    | Zod (esquemas en `packages/shared`, usados por api y web)                           | Una sola fuente de verdad para validaciones                       |
+| ORM / BD      | Prisma 6 + PostgreSQL 16 (+ extensiones `pg_trgm`, `unaccent`, `citext`)            | Migraciones versionadas, transacciones; `pg_trgm` para duplicados |
+| Dinero        | `decimal.js` en servidor, `numeric` en BD — nunca `float`                           | Precisión decimal exacta                                          |
+| Cola          | pg-boss (sobre la misma PostgreSQL)                                                 | Sin infraestructura extra (no Redis)                              |
+| Frontend      | React 19 + Vite + React Router                                                      | SPA rápida; el SEO no aplica a un CRM privado                     |
+| Datos en UI   | TanStack Query · TanStack Table (tablas configurables, virtualizadas)               | Caché, reintentos, columnas/orden/filtros configurables           |
+| UI            | Tailwind CSS 3 + Radix UI (primitivas accesibles) + lucide-react (íconos)           | Accesibilidad por teclado y ARIA de serie                         |
+| Formularios   | react-hook-form + zod resolver                                                      | Mismos esquemas que el backend                                    |
+| Drag and drop | dnd-kit                                                                             | Accesible por teclado, Kanban                                     |
+| Calendario    | FullCalendar (licencia MIT, vistas mes/semana/día)                                  | Vista calendario de tareas                                        |
+| Gráficos      | Recharts                                                                            | Dashboard y reportes                                              |
+| Excel / CSV   | `exceljs` (XLSX, por streaming) · `csv-parse` / `csv-stringify`                     | Lectura/escritura en streaming para archivos grandes              |
+| Auth          | Sesión en servidor (cookie `httpOnly`, `Secure`, `SameSite=Lax`) + argon2id         | Revocable al desactivar usuario; sin JWT en `localStorage`        |
+| Logs          | pino (JSON) con redacción de campos sensibles                                       |                                                                   |
+| Pruebas       | Vitest (unidad) · Vitest + Postgres real en Docker (integración) · Playwright (E2E) |                                                                   |
 
 **Alternativa evaluada:** Next.js 15 full-stack (el stack del CRM actual de Multiplica). Ventaja:
 mismo patrón que el equipo ya conoce. Desventaja: la definición pide una API REST documentada y
@@ -88,8 +88,8 @@ apps/
       features/<dominio>/         páginas, formularios, hooks de datos de cada módulo
       components/ui/              Button, Input, Select, Dialog, Drawer, DataTable, Kanban, Badge…
       lib/                        cliente API generado desde OpenAPI, formato de dinero/fechas
-  worker/
-    src/jobs/                     import, export, trash-purge, task-overdue-notify
+  (worker)                        apps/api/src/worker.ts + jobs.ts: mismo código que la API, otro
+                                  proceso (purga de papelera; luego import/export y avisos)
 packages/
   shared/                         esquemas Zod, catálogo de permisos, utilidades de dinero,
                                   enums (tipos de entidad, prioridades, estados)
@@ -102,19 +102,19 @@ tablas directamente.
 
 ## 4. Seguridad
 
-| Requisito                  | Implementación                                                                                         |
-| -------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Autenticación segura       | Correo + contraseña; argon2id; bloqueo temporal tras 5 intentos fallidos; recuperación por correo [D-22] |
-| Sesiones                   | Tabla `sessions`, cookie `httpOnly`; expiración por inactividad (8 h) y absoluta (7 d); se invalidan al desactivar usuario o cambiar contraseña |
-| CSRF                       | Cookie `SameSite=Lax` + token anti-CSRF en cabecera para métodos que modifican                           |
-| Control de acceso          | Guard global: módulo + acción + alcance (propio / equipo / todos) — ver [D-08]                          |
-| Aislamiento entre organizaciones | `organizationId` en todas las tablas de negocio + Row-Level Security en PostgreSQL [D-02]       |
-| Validación de entradas     | Zod en cada endpoint; límites de tamaño; archivos validados por tipo real y tamaño                     |
-| Auditoría                  | `audit_log` (accesos, permisos, fusiones, restauraciones, borrado definitivo, tipos de cambio, exportaciones) |
-| Protección de datos        | Logs sin contraseñas, tokens ni datos personales completos; exportaciones registradas en auditoría     |
-| Cabeceras                  | CSP estricta, HSTS, `X-Frame-Options: DENY`, `Referrer-Policy`                                           |
-| Límite de peticiones       | Rate limit en login, recuperación de contraseña e importación                                          |
-| Respaldo y recuperación    | `pg_dump` diario + retención 30 días + prueba de restauración mensual (runbook) [D-18]                 |
+| Requisito                        | Implementación                                                                                                                                  |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Autenticación segura             | Correo + contraseña; argon2id; bloqueo temporal tras 5 intentos fallidos; recuperación por correo [D-22]                                        |
+| Sesiones                         | Tabla `sessions`, cookie `httpOnly`; expiración por inactividad (8 h) y absoluta (7 d); se invalidan al desactivar usuario o cambiar contraseña |
+| CSRF                             | Cookie `SameSite=Lax` + token anti-CSRF en cabecera para métodos que modifican                                                                  |
+| Control de acceso                | Guard global: módulo + acción + alcance (propio / equipo / todos) — ver [D-08]                                                                  |
+| Aislamiento entre organizaciones | `organizationId` en todas las tablas de negocio + Row-Level Security en PostgreSQL [D-02]                                                       |
+| Validación de entradas           | Zod en cada endpoint; límites de tamaño; archivos validados por tipo real y tamaño                                                              |
+| Auditoría                        | `audit_log` (accesos, permisos, fusiones, restauraciones, borrado definitivo, tipos de cambio, exportaciones)                                   |
+| Protección de datos              | Logs sin contraseñas, tokens ni datos personales completos; exportaciones registradas en auditoría                                              |
+| Cabeceras                        | CSP estricta, HSTS, `X-Frame-Options: DENY`, `Referrer-Policy`                                                                                  |
+| Límite de peticiones             | Rate limit en login, recuperación de contraseña e importación                                                                                   |
+| Respaldo y recuperación          | `pg_dump` diario + retención 30 días + prueba de restauración mensual (runbook) [D-18]                                                          |
 
 ## 5. Transacciones (operaciones críticas)
 

@@ -35,7 +35,7 @@ Total      = Subtotal − Descuento
 
 ### 2.1 Maestro
 
-- Tasa expresada como "1 unidad de origen = *tasa* unidades de destino". Siempre > 0.
+- Tasa expresada como "1 unidad de origen = _tasa_ unidades de destino". Siempre > 0.
 - Un único registro **activo** por (fecha, origen, destino). Editar crea entrada en
   `exchange_rate_history`; desactivar no borra.
 - Tasa inversa: si no existe B→A pero sí A→B, se usa `1 / tasa(A→B)` solo si la regla de la
@@ -139,18 +139,18 @@ Regla configurable por organización. Propuesta por defecto:
 
 Propuesta de roles iniciales (editables, salvo que el Administrador conserva todo):
 
-| Módulo / acción            | Administrador | Supervisor          | Comercial                         |
-| -------------------------- | ------------- | ------------------- | --------------------------------- |
-| Prospectos / negociaciones | todos         | su(s) equipo(s)     | propios (responsable)             |
-| Contactos / compañías      | todos         | todos               | ver todos, editar propios         |
-| Productos                  | administrar   | ver                 | ver                               |
-| Tareas                     | todas         | su(s) equipo(s)     | donde es responsable, participante u observador (observador: solo lectura y comentarios) |
-| Importar / exportar        | sí            | sí (su alcance)     | exportar su alcance; no importar  |
-| Papelera: restaurar        | sí            | su alcance          | lo que eliminó él                 |
-| Eliminar definitivamente   | sí            | no                  | no                                |
-| Fusionar duplicados        | sí            | sí                  | no                                |
-| Editar tipos de cambio     | sí            | no                  | no                                |
-| Configuración / usuarios   | sí            | no                  | no                                |
+| Módulo / acción            | Administrador | Supervisor      | Comercial                                                                                |
+| -------------------------- | ------------- | --------------- | ---------------------------------------------------------------------------------------- |
+| Prospectos / negociaciones | todos         | su(s) equipo(s) | propios (responsable)                                                                    |
+| Contactos / compañías      | todos         | todos           | ver todos, editar propios                                                                |
+| Productos                  | administrar   | ver             | ver                                                                                      |
+| Tareas                     | todas         | su(s) equipo(s) | donde es responsable, participante u observador (observador: solo lectura y comentarios) |
+| Importar / exportar        | sí            | sí (su alcance) | exportar su alcance; no importar                                                         |
+| Papelera: restaurar        | sí            | su alcance      | lo que eliminó él                                                                        |
+| Eliminar definitivamente   | sí            | no              | no                                                                                       |
+| Fusionar duplicados        | sí            | sí              | no                                                                                       |
+| Editar tipos de cambio     | sí            | no              | no                                                                                       |
+| Configuración / usuarios   | sí            | no              | no                                                                                       |
 
 Todos los permisos se verifican en el backend en cada petición; la UI solo oculta lo no permitido.
 

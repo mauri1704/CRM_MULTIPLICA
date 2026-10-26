@@ -1,0 +1,16 @@
+# Solo para desarrollo local. Producción: ver deploy/ (Fase 6).
+# Puerto 5435 para no chocar con el CRM actual (5434) ni con el Data Connector (5433).
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: crm
+      POSTGRES_PASSWORD: crm
+      POSTGRES_DB: crm
+    ports:
+      - '5435:5432'
+    volumes:
+      - crm-db:/var/lib/postgresql/data
+      - ./apps/api/scripts/db/init-test-db.sql:/docker-entrypoint-initdb.d/10-test-db.sql:ro
+volumes:
+  crm-db:

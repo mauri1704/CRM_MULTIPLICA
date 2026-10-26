@@ -10,18 +10,50 @@ motor de automatizaciones comerciales.
 
 ## Estado
 
-**Etapa 0: diseño pendiente de aprobación.** Todavía no hay código: la definición funcional pide
-entregar y aprobar primero la arquitectura, el modelo de datos, el mapa de navegación y las
-decisiones que afectan reglas comerciales, permisos, monedas o conservación de datos.
+| Fase                                                          | Estado                   |
+| ------------------------------------------------------------- | ------------------------ |
+| 0 — Diseño y andamiaje                                        | ✅ Decisiones aprobadas  |
+| 1 — Base del sistema                                          | ✅ Entregada (ver abajo) |
+| 2 — Contactos, compañías, productos, monedas, tipos de cambio | Siguiente                |
+| 3 a 6                                                         | Pendientes               |
 
-| Documento                                                          | Contenido                                               |
-| ------------------------------------------------------------------ | ------------------------------------------------------- |
-| [01 — Arquitectura](docs/plan/01-arquitectura.md)                  | Stack, componentes, seguridad, despliegue               |
-| [02 — Modelo de datos](docs/plan/02-modelo-datos.md)               | Entidades, relaciones (ER), índices, transacciones      |
-| [03 — Navegación y UX/UI](docs/plan/03-navegacion-ux.md)           | Mapa de navegación, pantallas, sistema visual           |
-| [04 — Reglas de negocio](docs/plan/04-reglas-negocio.md)           | Cálculos, monedas, conversión, papelera, duplicados     |
-| [05 — Backlog y criterios](docs/plan/05-backlog-criterios.md)      | Historias por fase y criterios de aceptación            |
-| [06 — Plan por fases](docs/plan/06-plan-fases.md)                  | Fases, dependencias técnicas, entregables, pruebas      |
-| [07 — Decisiones pendientes](docs/plan/07-decisiones-pendientes.md) | **Lo que hay que aprobar antes de programar**           |
+### Fase 1 — qué incluye
 
-La implementación empieza por la Fase 1 cuando las decisiones del documento 07 estén aprobadas.
+- **Acceso:** inicio de sesión con cookie de sesión en servidor, contraseñas argon2id, bloqueo tras
+  5 intentos, recuperación por correo con enlace de un solo uso, cambio de contraseña, cierre de
+  sesión por inactividad, protección CSRF y límite de intentos.
+- **Usuarios, equipos y roles:** altas, edición, activación/desactivación (cierra sesiones), equipos
+  con supervisor y miembros, roles del sistema (Administrador, Supervisor, Comercial) y roles propios
+  con matriz de permisos módulo × acción × alcance (propios / equipo / todos), validada en la API.
+- **Configuración:** organización y parámetros generales, pipelines y etapas (prospectos y
+  negociaciones), prioridades con color + ícono + texto, orígenes, motivos de pérdida, tipos de
+  documento, sectores, estados de tarea y campos personalizados por módulo.
+- **Papelera base:** eliminación lógica, restauración con detección de conflictos, eliminación
+  definitiva con confirmación escrita y permiso, purga diaria por retención (worker).
+- **Trazabilidad:** historial de cambios por registro y auditoría de eventos sensibles (solo
+  inserción a nivel de base de datos).
+- **Aislamiento entre organizaciones:** `organization_id` en todas las tablas + Row-Level Security
+  en PostgreSQL con un rol de aplicación sin privilegios.
+- **Interfaz:** menú lateral, barra superior con notificaciones y perfil, modo claro/oscuro,
+  diseño adaptable a móvil, formularios con validación en español.
+- **Calidad:** 12 pruebas unitarias, 46 de integración (API + PostgreSQL real + RLS) y 7 E2E
+  (Playwright), CI en GitHub Actions.
+
+La búsqueda global de la barra superior llega con la Fase 2, cuando existan contactos y compañías
+que buscar.
+
+## Puesta en marcha
+
+Ver [CLAUDE.md](CLAUDE.md#puesta-en-marcha-local). API documentada en `http://localhost:3001/api/docs`.
+
+## Documentos de diseño
+
+| Documento                                                     | Contenido                                           |
+| ------------------------------------------------------------- | --------------------------------------------------- |
+| [01 — Arquitectura](docs/plan/01-arquitectura.md)             | Stack, componentes, seguridad, despliegue           |
+| [02 — Modelo de datos](docs/plan/02-modelo-datos.md)          | Entidades, relaciones (ER), índices, transacciones  |
+| [03 — Navegación y UX/UI](docs/plan/03-navegacion-ux.md)      | Mapa de navegación, pantallas, sistema visual       |
+| [04 — Reglas de negocio](docs/plan/04-reglas-negocio.md)      | Cálculos, monedas, conversión, papelera, duplicados |
+| [05 — Backlog y criterios](docs/plan/05-backlog-criterios.md) | Historias por fase y criterios de aceptación        |
+| [06 — Plan por fases](docs/plan/06-plan-fases.md)             | Fases, dependencias técnicas, entregables, pruebas  |
+| [07 — Decisiones](docs/plan/07-decisiones-pendientes.md)      | Decisiones aprobadas y preguntas abiertas           |
