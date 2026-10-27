@@ -14,8 +14,9 @@ motor de automatizaciones comerciales.
 | ------------------------------------------------------------- | ------------------------ |
 | 0 — Diseño y andamiaje                                        | ✅ Decisiones aprobadas  |
 | 1 — Base del sistema                                          | ✅ Entregada (ver abajo) |
-| 2 — Contactos, compañías, productos, monedas, tipos de cambio | Siguiente                |
-| 3 a 6                                                         | Pendientes               |
+| 2 — Contactos, compañías, productos, monedas, tipos de cambio | ✅ Entregada (ver abajo) |
+| 3 — Prospectos, negociaciones, conversión                     | Siguiente                |
+| 4 a 6                                                         | Pendientes               |
 
 ### Fase 1 — qué incluye
 
@@ -36,11 +37,30 @@ motor de automatizaciones comerciales.
   en PostgreSQL con un rol de aplicación sin privilegios.
 - **Interfaz:** menú lateral, barra superior con notificaciones y perfil, modo claro/oscuro,
   diseño adaptable a móvil, formularios con validación en español.
-- **Calidad:** 12 pruebas unitarias, 46 de integración (API + PostgreSQL real + RLS) y 7 E2E
+- **Calidad:** pruebas unitarias, de integración (API + PostgreSQL real + RLS) y E2E
   (Playwright), CI en GitHub Actions.
 
-La búsqueda global de la barra superior llega con la Fase 2, cuando existan contactos y compañías
-que buscar.
+### Fase 2 — qué incluye
+
+- **Contactos y compañías:** alta, edición, ficha en panel lateral, papelera e historial; código
+  correlativo (`CON-`, `CIA-`); RUC validado con su dígito verificador y único entre compañías
+  vigentes; documentos validados según su tipo; compañía principal y compañías relacionadas;
+  responsable con alcance por registro (propios / equipo / todos) aplicado en la API; campos
+  personalizados; control de ediciones concurrentes.
+- **Productos:** SKU único (normalizado), categorías, precio decimal exacto con moneda, descuento
+  máximo, activo/inactivo, papelera con detección de SKU repetido al restaurar.
+- **Monedas:** maestro con código ISO, símbolo, decimales y posición; una sola principal (se
+  sincroniza con la organización); PEN y USD iniciales.
+- **Tipos de cambio:** maestro diario sin servicios externos, una tasa activa por fecha y par, edición
+  con motivo e historial propio, auditoría, y la regla de selección aprobada (D-05): tasa del día,
+  la anterior dentro del plazo configurable, inversa opcional; si no hay, se informa y no se inventa.
+- **Importación y exportación (Excel y CSV):** plantilla descargable, mapeo de columnas, vista previa
+  con válidos/inválidos sin escribir, duplicados omitir/actualizar por clave (correo/documento, RUC,
+  SKU, código, fecha+par), reporte de errores descargable, historial de importaciones; exportación de
+  todos o filtrados, con columnas a elección y campos personalizados, respetando permisos y alcance.
+  Máximo 5.000 filas por importación y 50.000 por exportación (lo mayor irá al worker en la Fase 5).
+- **Búsqueda global** (Ctrl+K) en contactos, compañías y productos, según permisos.
+- **Calidad:** 72 pruebas de integración y 12 E2E.
 
 ## Puesta en marcha
 

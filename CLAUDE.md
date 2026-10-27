@@ -45,6 +45,13 @@ packages/shared/src/schemas/      validaciones compartidas (la API y los formula
    aplicar. Prohibido `prisma db push`, editar migraciones ya mergeadas, `DROP`/`TRUNCATE` de tablas
    con datos o renombrar columnas en un paso.
 
+## Importación y exportación
+
+Cada módulo de datos aporta una `ImportExportDefinition` en
+`apps/api/src/modules/import-export/registry.ts` (campos, ejemplo, interpretación de filas, clave de
+correspondencia y columnas de exportación). Las escrituras pasan siempre por el service del módulo:
+mismas validaciones, alcance, historial y auditoría que la pantalla.
+
 ## Endpoints
 
 - Declara el permiso: `@RequirePermission('modulo', 'accion')`. El alcance (propios/equipo/todos)
