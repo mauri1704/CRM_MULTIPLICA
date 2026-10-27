@@ -6,6 +6,7 @@
     "node": ">=22"
   },
   "scripts": {
+    "postinstall": "pnpm -F @crm/shared build && pnpm -F @crm/api exec prisma generate",
     "dev": "pnpm -F @crm/shared build && concurrently -k -n shared,api,web -c gray,blue,green \"pnpm -F @crm/shared dev\" \"pnpm -F @crm/api dev\" \"pnpm -F @crm/web dev\"",
     "worker:dev": "pnpm -F @crm/api worker:dev",
     "build": "pnpm -r build",
