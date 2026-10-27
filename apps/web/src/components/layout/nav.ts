@@ -1,6 +1,12 @@
 import type { PermissionAction, PermissionModule } from '@crm/shared';
 import {
+  ArrowRightLeft,
+  Building,
   Building2,
+  Coins,
+  Contact,
+  FileSpreadsheet,
+  Package,
   GitBranch,
   Home,
   KeyRound,
@@ -19,7 +25,17 @@ export interface NavItem {
   icon: LucideIcon;
   /** Permiso necesario para ver el elemento; sin permiso, no se muestra. */
   permission?: [PermissionModule, PermissionAction];
+  /** Alternativa: basta con uno de estos permisos. */
+  anyPermission?: [PermissionModule, PermissionAction][];
 }
+
+export const IMPORT_PERMISSIONS: [PermissionModule, PermissionAction][] = [
+  ['contacts', 'import'],
+  ['companies', 'import'],
+  ['products', 'import'],
+  ['currencies', 'import'],
+  ['exchange_rates', 'import'],
+];
 
 export interface NavSection {
   title?: string;
@@ -33,8 +49,29 @@ export interface NavSection {
 export const NAV: NavSection[] = [
   { items: [{ to: '/', label: 'Inicio', icon: Home }] },
   {
+    title: 'Comercial',
+    items: [
+      { to: '/contactos', label: 'Contactos', icon: Contact, permission: ['contacts', 'view'] },
+      { to: '/companias', label: 'Compañías', icon: Building, permission: ['companies', 'view'] },
+    ],
+  },
+  {
+    title: 'Catálogo',
+    items: [
+      { to: '/productos', label: 'Productos', icon: Package, permission: ['products', 'view'] },
+    ],
+  },
+  {
     title: 'Calidad de datos',
-    items: [{ to: '/papelera', label: 'Papelera', icon: Trash2, permission: ['trash', 'view'] }],
+    items: [
+      {
+        to: '/importaciones',
+        label: 'Importaciones',
+        icon: FileSpreadsheet,
+        anyPermission: IMPORT_PERMISSIONS,
+      },
+      { to: '/papelera', label: 'Papelera', icon: Trash2, permission: ['trash', 'view'] },
+    ],
   },
   {
     title: 'Administración',
@@ -70,6 +107,13 @@ export const NAV: NavSection[] = [
         label: 'Campos personalizados',
         icon: SlidersHorizontal,
         permission: ['settings', 'view'],
+      },
+      { to: '/admin/monedas', label: 'Monedas', icon: Coins, permission: ['currencies', 'view'] },
+      {
+        to: '/admin/tipos-de-cambio',
+        label: 'Tipos de cambio',
+        icon: ArrowRightLeft,
+        permission: ['exchange_rates', 'view'],
       },
       {
         to: '/admin/auditoria',

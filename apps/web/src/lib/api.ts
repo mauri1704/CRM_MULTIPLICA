@@ -63,7 +63,60 @@ async function request<T>(method: string, path: string, body?: unknown, query?: 
   return data as T;
 }
 
+/** Sube un archivo (multipart) al endpoint indicado. */
+async function upload<T>(path: string, file: File): Promise<T> {
+  const body = new FormData();
+  body.append('file', file);
+  const res = await fetch(buildUrl(path), {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'X-CRM-Request': '1', Accept: 'application/json' },
+    body,
+  });
+  const text = await res.text();
+  const data: unknown = text ? JSON.parse(text) : undefined;
+  if (!res.ok) {
+    const err = (data ?? {}) as Partial<ApiErrorBody>;
+    throw new ApiError(
+      res.status,
+      err.code ?? `HTTP_${res.status}`,
+      err.message ?? 'No se pudo subir el archivo.',
+      err.details ?? {},
+    );
+  }
+  return data as T;
+}
+
+/** Descarga un archivo de la API y lo guarda con el nombre que indica el servidor. */
+async function download(path: string, query?: Query): Promise<void> {
+  const res = await fetch(buildUrl(path, query), {
+    credentials: 'same-origin',
+    headers: { 'X-CRM-Request': '1' },
+  });
+  if (!res.ok) {
+    const err = ((await res.json().catch(() => ({}))) ?? {}) as Partial<ApiErrorBody>;
+    throw new ApiError(
+      res.status,
+      err.code ?? `HTTP_${res.status}`,
+      err.message ?? 'No se pudo descargar el archivo.',
+      err.details ?? {},
+    );
+  }
+  const name =
+    /filename="([^"]+)"/.exec(res.headers.get('content-disposition') ?? '')?.[1] ?? 'archivo';
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 export const api = {
+  upload,
+  download,
   get: <T>(path: string, query?: Query) => request<T>('GET', path, undefined, query),
   post: <T>(path: string, body?: unknown) => request<T>('POST', path, body ?? {}),
   patch: <T>(path: string, body: unknown) => request<T>('PATCH', path, body),

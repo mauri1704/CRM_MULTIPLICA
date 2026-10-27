@@ -166,3 +166,156 @@ export interface NotificationItem {
   readAt: string | null;
   createdAt: string;
 }
+
+// ---------------------------------------------------------------------------
+// Fase 2
+// ---------------------------------------------------------------------------
+
+export type CustomValues = Record<string, unknown>;
+
+export interface Currency {
+  id: string;
+  code: string;
+  name: string;
+  symbol: string;
+  decimals: number;
+  symbolPosition: 'BEFORE' | 'AFTER';
+  isBase: boolean;
+  active: boolean;
+}
+
+export interface ExchangeRate {
+  id: string;
+  rateDate: string;
+  fromCurrency: string;
+  toCurrency: string;
+  rate: string;
+  status: 'ACTIVE' | 'INACTIVE';
+  source: 'MANUAL' | 'IMPORT';
+  updatedByName: string | null;
+  updatedAt: string;
+}
+
+export interface ExchangeRateHistoryEntry {
+  id: string;
+  oldRate: string | null;
+  newRate: string | null;
+  oldStatus: string | null;
+  newStatus: string | null;
+  reason: string;
+  userName: string | null;
+  createdAt: string;
+}
+
+export interface Ref {
+  id: string;
+  name: string;
+}
+
+export interface Product {
+  id: string;
+  sku: string;
+  name: string;
+  description: string | null;
+  category: Ref | null;
+  categoryId: string | null;
+  price: string;
+  currencyCode: string;
+  maxDiscountPct: string;
+  active: boolean;
+  customFields: CustomValues;
+  version: number;
+}
+
+export interface CompanyRef {
+  id: string;
+  code: string;
+  legalName: string;
+}
+
+export interface Company {
+  id: string;
+  code: string;
+  legalName: string;
+  tradeName: string | null;
+  taxIdType: { id: string; code: string; name: string } | null;
+  taxIdTypeId: string | null;
+  taxId: string | null;
+  sector: Ref | null;
+  sectorId: string | null;
+  address: string | null;
+  city: string | null;
+  country: string;
+  email: string | null;
+  phone: string | null;
+  website: string | null;
+  owner: Ref | null;
+  ownerId: string | null;
+  notes: string | null;
+  customFields: CustomValues;
+  contactCount: number;
+  version: number;
+  createdAt: string;
+}
+
+export interface ContactBrief {
+  id: string;
+  code: string;
+  firstName: string;
+  lastName: string | null;
+  jobTitle?: string | null;
+  email: string | null;
+  phone: string | null;
+}
+
+export interface CompanyDetail extends Company {
+  contacts: ContactBrief[];
+  relatedContacts: ContactBrief[];
+}
+
+export interface Contact {
+  id: string;
+  code: string;
+  firstName: string;
+  lastName: string | null;
+  fullName: string;
+  documentType: { id: string; code: string; name: string } | null;
+  documentTypeId: string | null;
+  documentNumber: string | null;
+  phone: string | null;
+  email: string | null;
+  jobTitle: string | null;
+  company: CompanyRef | null;
+  companyId: string | null;
+  relatedCompanies: (CompanyRef & { jobTitle: string | null })[];
+  owner: Ref | null;
+  ownerId: string | null;
+  notes: string | null;
+  customFields: CustomValues;
+  version: number;
+  createdAt: string;
+}
+
+export interface ImportJob {
+  id: string;
+  entityType: string;
+  entityLabel: string;
+  fileName: string;
+  format: string;
+  status: 'UPLOADED' | 'COMPLETED' | 'FAILED';
+  totalRows: number;
+  validRows: number;
+  invalidRows: number;
+  createdRows: number;
+  updatedRows: number;
+  skippedRows: number;
+  createdByName: string | null;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+export interface SearchResult {
+  contacts: { id: string; title: string; subtitle: string }[];
+  companies: { id: string; title: string; subtitle: string }[];
+  products: { id: string; title: string; subtitle: string }[];
+}

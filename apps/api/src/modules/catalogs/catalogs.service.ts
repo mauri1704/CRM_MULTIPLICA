@@ -27,6 +27,7 @@ const ORDER: Record<CatalogKind, Record<string, 'asc' | 'desc'>[]> = {
   'loss-reasons': [{ entityType: 'asc' }, { name: 'asc' }],
   'document-types': [{ code: 'asc' }],
   'economic-sectors': [{ name: 'asc' }],
+  'product-categories': [{ name: 'asc' }],
 };
 
 export const isCatalogKind = (v: string): v is CatalogKind =>
@@ -52,6 +53,7 @@ export class CatalogsService {
       'document-types': tx.documentType,
       'economic-sectors': tx.economicSector,
       'task-statuses': tx.taskStatus,
+      'product-categories': tx.productCategory,
     } as const;
     // Los delegates de Prisma tienen firmas genéricas más amplias que CatalogDelegate; se
     // restringen aquí, en un único lugar.

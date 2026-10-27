@@ -11,6 +11,7 @@ import { cn } from '@/lib/cn';
 import { relativeTime } from '@/lib/format';
 import { applyTheme, type Theme } from '@/lib/theme';
 import type { NotificationItem } from '@/lib/types';
+import { GlobalSearch } from './global-search';
 import { NAV } from './nav';
 
 export function AppLayout() {
@@ -70,7 +71,11 @@ function Sidebar() {
       </Link>
       <div className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
         {NAV.map((section, i) => {
-          const items = section.items.filter((it) => !it.permission || can(...it.permission));
+          const items = section.items.filter(
+            (it) =>
+              (!it.permission || can(...it.permission)) &&
+              (!it.anyPermission || it.anyPermission.some((p) => can(...p))),
+          );
           if (items.length === 0) return null;
           return (
             <div key={section.title ?? i}>
@@ -122,7 +127,9 @@ function Topbar({ onMenu }: { onMenu: () => void }) {
       >
         <Menu className="h-5 w-5" aria-hidden />
       </button>
-      <div className="flex-1" />
+      <div className="flex flex-1 justify-center">
+        <GlobalSearch />
+      </div>
       <Notifications />
       <ProfileMenu />
     </header>

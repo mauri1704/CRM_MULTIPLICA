@@ -97,6 +97,18 @@ function wrap(agent: TestAgent) {
     put: (path: string, body?: object) => agent.put(url(path)).set('x-crm-request', '1').send(body),
     delete: (path: string, body?: object) =>
       agent.delete(url(path)).set('x-crm-request', '1').send(body),
+    upload: (path: string, content: Buffer, fileName: string) =>
+      agent.post(url(path)).set('x-crm-request', '1').attach('file', content, fileName),
+    /** Descarga binaria (xlsx/csv) como Buffer. */
+    download: (path: string) =>
+      agent
+        .get(url(path))
+        .buffer(true)
+        .parse((res, cb) => {
+          const chunks: Buffer[] = [];
+          res.on('data', (c: Buffer) => chunks.push(c));
+          res.on('end', () => cb(null, Buffer.concat(chunks)));
+        }),
   };
 }
 

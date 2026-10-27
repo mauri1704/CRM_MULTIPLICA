@@ -51,6 +51,44 @@ describe('aislamiento entre organizaciones (API)', () => {
     expect(team?.deletedAt).toBeNull();
   });
 
+  it('A no lee, edita ni borra contactos, compañías, productos ni tasas de B', async () => {
+    const adminB = await login(app, b.adminEmail);
+    const company = (
+      await adminB.post('/companies', { legalName: 'Secreta B SAC', taxId: '20100047218' })
+    ).body;
+    const contact = (
+      await adminB.post('/contacts', { firstName: 'Secreto', companyId: company.id })
+    ).body;
+    const product = (
+      await adminB.post('/products', {
+        sku: 'B-1',
+        name: 'Producto B',
+        price: '10',
+        currencyCode: 'PEN',
+      })
+    ).body;
+    for (const path of [
+      `/companies/${company.id}`,
+      `/contacts/${contact.id}`,
+      `/products/${product.id}`,
+    ]) {
+      expect((await adminA.get(path)).status).toBe(404);
+      expect((await adminA.patch(path, { notes: 'x', name: 'Robado' })).status).toBe(404);
+      expect((await adminA.delete(path)).status).toBe(404);
+    }
+    // Un contacto de A no puede apuntar a la compañía de B.
+    expect(
+      (await adminA.post('/contacts', { firstName: 'Mixto', companyId: company.id })).status,
+    ).toBe(400);
+    // El mismo RUC puede existir en otra organización.
+    expect(
+      (await adminA.post('/companies', { legalName: 'Otra A SAC', taxId: '20100047218' })).status,
+    ).toBe(201);
+    const search = await adminA.get('/search?q=secret');
+    expect(search.body.contacts).toEqual([]);
+    expect(search.body.companies).toEqual([]);
+  });
+
   it('A no puede asignar a su equipo un usuario de B ni dar a un usuario un rol de B', async () => {
     expect(
       (await adminA.post('/teams', { name: 'Mixto', memberIds: [b.adminUserId] })).status,
@@ -85,6 +123,15 @@ describe('Row-Level Security (segunda barrera, en la base de datos)', () => {
     'audit_log',
     'notifications',
     'trash_entries',
+    'currencies',
+    'exchange_rates',
+    'exchange_rate_history',
+    'product_categories',
+    'products',
+    'companies',
+    'contacts',
+    'contact_companies',
+    'import_jobs',
   ];
 
   it('todas las tablas de organización tienen RLS activo', async () => {

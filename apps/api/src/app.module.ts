@@ -28,6 +28,15 @@ import { TeamsController } from './modules/teams/teams.controller';
 import { TrashController } from './modules/trash/trash.controller';
 import { UsersController } from './modules/users/users.controller';
 import { UsersService } from './modules/users/users.service';
+import { CompaniesController } from './modules/companies/companies.controller';
+import { ContactsController } from './modules/contacts/contacts.controller';
+import { CurrenciesController } from './modules/currencies/currencies.controller';
+import { ExchangeRatesController } from './modules/exchange-rates/exchange-rates.controller';
+import { ImportExportController } from './modules/import-export/import-export.controller';
+import { ImportExportService } from './modules/import-export/import-export.service';
+import { ImportExportRegistry } from './modules/import-export/registry';
+import { ProductsController } from './modules/products/products.controller';
+import { SearchController } from './modules/search/search.controller';
 
 export const loggerModule = LoggerModule.forRoot({
   pinoHttp: {
@@ -76,6 +85,13 @@ export const loggerModule = LoggerModule.forRoot({
     AuditController,
     NotificationsController,
     TrashController,
+    CurrenciesController,
+    ExchangeRatesController,
+    ProductsController,
+    CompaniesController,
+    ContactsController,
+    SearchController,
+    ImportExportController,
   ],
   providers: [
     AuthService,
@@ -84,6 +100,8 @@ export const loggerModule = LoggerModule.forRoot({
     OrganizationService,
     CatalogsService,
     PipelinesService,
+    ImportExportService,
+    ImportExportRegistry,
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: AuthGuard },

@@ -7,6 +7,7 @@ import { OrganizationSettingsService } from './organization/organization-setting
 import { SequenceService } from './sequences/sequence.service';
 import { TrashService } from './trash/trash.service';
 import { CustomFieldsService } from './custom-fields/custom-fields.service';
+import { RecordScopeService } from './access/record-scope.service';
 
 /** Servicios transversales que usan todos los módulos de dominio. */
 @Global()
@@ -20,6 +21,7 @@ import { CustomFieldsService } from './custom-fields/custom-fields.service';
     OrganizationSettingsService,
     TrashService,
     CustomFieldsService,
+    RecordScopeService,
   ],
   exports: [
     AuditService,
@@ -30,6 +32,7 @@ import { CustomFieldsService } from './custom-fields/custom-fields.service';
     OrganizationSettingsService,
     TrashService,
     CustomFieldsService,
+    RecordScopeService,
   ],
 })
 export class CoreModule {}

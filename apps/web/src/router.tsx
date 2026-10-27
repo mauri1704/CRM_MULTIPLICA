@@ -15,6 +15,12 @@ import { ResetPasswordPage } from '@/features/auth/reset-password-page';
 import { HomePage } from '@/features/home/home-page';
 import { NotFoundPage } from '@/features/home/not-found-page';
 import { TrashPage } from '@/features/trash/trash-page';
+import { CompaniesPage } from '@/features/companies/companies-page';
+import { ContactsPage } from '@/features/contacts/contacts-page';
+import { ImportsPage } from '@/features/import-export/imports-page';
+import { CurrenciesPage } from '@/features/money/currencies-page';
+import { ExchangeRatesPage } from '@/features/money/exchange-rates-page';
+import { ProductsPage } from '@/features/products/products-page';
 
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
@@ -28,6 +34,47 @@ export const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <HomePage /> },
+      {
+        path: 'contactos',
+        element: (
+          <RequirePermission module="contacts" action="view">
+            <ContactsPage />
+          </RequirePermission>
+        ),
+      },
+      {
+        path: 'companias',
+        element: (
+          <RequirePermission module="companies" action="view">
+            <CompaniesPage />
+          </RequirePermission>
+        ),
+      },
+      {
+        path: 'productos',
+        element: (
+          <RequirePermission module="products" action="view">
+            <ProductsPage />
+          </RequirePermission>
+        ),
+      },
+      { path: 'importaciones', element: <ImportsPage /> },
+      {
+        path: 'admin/monedas',
+        element: (
+          <RequirePermission module="currencies" action="view">
+            <CurrenciesPage />
+          </RequirePermission>
+        ),
+      },
+      {
+        path: 'admin/tipos-de-cambio',
+        element: (
+          <RequirePermission module="exchange_rates" action="view">
+            <ExchangeRatesPage />
+          </RequirePermission>
+        ),
+      },
       {
         path: 'papelera',
         element: (

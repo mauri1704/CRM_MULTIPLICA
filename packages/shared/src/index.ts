@@ -9,3 +9,7 @@ export * from './schemas/users';
 export * from './schemas/roles';
 export * from './schemas/settings';
 export * from './schemas/config';
+export * from './normalize';
+export * from './schemas/crm';
+export * from './schemas/money';
+export * from './schemas/import';

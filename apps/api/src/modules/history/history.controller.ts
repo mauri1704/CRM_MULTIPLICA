@@ -17,6 +17,11 @@ const MODULE_BY_ENTITY: Partial<Record<EntityType, PermissionModule>> = {
   CATALOG: 'settings',
   CUSTOM_FIELD: 'settings',
   ORGANIZATION: 'settings',
+  CURRENCY: 'currencies',
+  EXCHANGE_RATE: 'exchange_rates',
+  PRODUCT: 'products',
+  CONTACT: 'contacts',
+  COMPANY: 'companies',
 };
 
 @ApiTags('Historial')
@@ -32,7 +37,6 @@ export class HistoryController {
   ) {
     if (!(ENTITY_TYPES as readonly string[]).includes(entityType)) throw notFound();
     const module = MODULE_BY_ENTITY[entityType as EntityType];
-    // Las entidades comerciales (fases 2+) validan el acceso al registro concreto en su propio módulo.
     if (!module) throw notFound();
     if (!can(user.permissions, module, 'view')) throw forbidden();
     return this.history.list(entityType as EntityType, entityId);

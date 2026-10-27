@@ -15,6 +15,8 @@ export const ENTITY_TYPES = [
   'CATALOG',
   'CUSTOM_FIELD',
   'ORGANIZATION',
+  'CURRENCY',
+  'EXCHANGE_RATE',
 ] as const;
 export type EntityType = (typeof ENTITY_TYPES)[number];
 
@@ -34,6 +36,8 @@ export const ENTITY_LABELS: Record<EntityType, string> = {
   CATALOG: 'Catálogo',
   CUSTOM_FIELD: 'Campo personalizado',
   ORGANIZATION: 'Organización',
+  CURRENCY: 'Moneda',
+  EXCHANGE_RATE: 'Tipo de cambio',
 };
 
 /** Entidades que admiten campos personalizados. */
@@ -126,6 +130,7 @@ export const AUDIT_EVENTS = [
   'IMPORT',
   'MERGE',
   'EXCHANGE_RATE_CHANGED',
+  'CURRENCY_CHANGED',
 ] as const;
 export type AuditEvent = (typeof AUDIT_EVENTS)[number];
 
@@ -153,4 +158,5 @@ export const AUDIT_EVENT_LABELS: Record<AuditEvent, string> = {
   IMPORT: 'Importación',
   MERGE: 'Fusión de registros',
   EXCHANGE_RATE_CHANGED: 'Tipo de cambio modificado',
+  CURRENCY_CHANGED: 'Moneda modificada',
 };

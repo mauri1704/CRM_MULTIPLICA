@@ -134,6 +134,16 @@ export async function bootstrapOrganization(
         ].map((s) => ({ ...s, organizationId })),
       });
 
+      await tx.currency.createMany({
+        data: [
+          { code: 'PEN', name: 'Sol peruano', symbol: 'S/', decimals: 2, isBase: true },
+          { code: 'USD', name: 'Dólar estadounidense', symbol: 'US$', decimals: 2 },
+        ].map((c) => ({ ...c, organizationId })),
+      });
+      await tx.productCategory.createMany({
+        data: ['Productos', 'Servicios', 'Licencias'].map((name) => ({ organizationId, name })),
+      });
+
       const pipelines = [
         {
           entityType: 'LEAD',

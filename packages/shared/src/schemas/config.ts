@@ -13,6 +13,7 @@ export const CATALOG_KINDS = [
   'document-types',
   'economic-sectors',
   'task-statuses',
+  'product-categories',
 ] as const;
 export type CatalogKind = (typeof CATALOG_KINDS)[number];
 
@@ -23,6 +24,7 @@ export const CATALOG_LABELS: Record<CatalogKind, { plural: string; singular: str
   'document-types': { plural: 'Tipos de documento', singular: 'Tipo de documento' },
   'economic-sectors': { plural: 'Sectores económicos', singular: 'Sector' },
   'task-statuses': { plural: 'Estados de tarea', singular: 'Estado de tarea' },
+  'product-categories': { plural: 'Categorías de producto', singular: 'Categoría' },
 };
 
 export const PRIORITY_ICONS = [
@@ -89,6 +91,7 @@ export const catalogInputs = {
     category: z.enum(TASK_STATUS_CATEGORIES),
     position: z.number().int().min(0).max(1000),
   }),
+  'product-categories': z.object({ name }),
 } satisfies Record<CatalogKind, z.ZodTypeAny>;
 
 export type CatalogInput<K extends CatalogKind> = z.infer<(typeof catalogInputs)[K]>;

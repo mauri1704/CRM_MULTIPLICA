@@ -15,7 +15,7 @@ function normalize(v: unknown): unknown {
 /** Diferencias campo a campo entre dos versiones de un registro (solo los campos indicados). */
 export function diff<T extends object>(
   before: T,
-  after: Partial<T>,
+  after: Partial<Record<keyof T, unknown>>,
   fields: readonly (keyof T)[],
 ): Changes {
   const changes: Changes = {};

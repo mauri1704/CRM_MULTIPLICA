@@ -34,29 +34,31 @@ model Organization {
 }
 
 model User {
-  id                 String    @id @default(uuid(7)) @db.Uuid
-  organizationId     String    @map("organization_id") @db.Uuid
+  id                String    @id @default(uuid(7)) @db.Uuid
+  organizationId    String    @map("organization_id") @db.Uuid
   /// Siempre en minúsculas (lo normaliza el esquema Zod). Único en todo el sistema.
-  email              String    @unique @db.VarChar(254)
-  name               String    @db.VarChar(120)
-  passwordHash       String    @map("password_hash")
-  roleId             String    @map("role_id") @db.Uuid
-  active             Boolean   @default(true)
-  theme              String    @default("system") @db.VarChar(10)
-  lastLoginAt        DateTime? @map("last_login_at") @db.Timestamptz(3)
-  failedLoginCount   Int       @default(0) @map("failed_login_count")
-  lockedUntil        DateTime? @map("locked_until") @db.Timestamptz(3)
-  passwordChangedAt  DateTime  @default(now()) @map("password_changed_at") @db.Timestamptz(3)
-  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
-  createdById        String?   @map("created_by_id") @db.Uuid
+  email             String    @unique @db.VarChar(254)
+  name              String    @db.VarChar(120)
+  passwordHash      String    @map("password_hash")
+  roleId            String    @map("role_id") @db.Uuid
+  active            Boolean   @default(true)
+  theme             String    @default("system") @db.VarChar(10)
+  lastLoginAt       DateTime? @map("last_login_at") @db.Timestamptz(3)
+  failedLoginCount  Int       @default(0) @map("failed_login_count")
+  lockedUntil       DateTime? @map("locked_until") @db.Timestamptz(3)
+  passwordChangedAt DateTime  @default(now()) @map("password_changed_at") @db.Timestamptz(3)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById       String?   @map("created_by_id") @db.Uuid
 
-  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  role         Role                  @relation(fields: [roleId], references: [id], onDelete: Restrict)
-  sessions     Session[]
-  resetTokens  PasswordResetToken[]
-  teams        TeamMember[]
-  supervises   Team[]                @relation("TeamSupervisor")
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  role           Role                 @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  sessions       Session[]
+  resetTokens    PasswordResetToken[]
+  teams          TeamMember[]
+  supervises     Team[]               @relation("TeamSupervisor")
+  ownedCompanies Company[]            @relation("CompanyOwner")
+  ownedContacts  Contact[]            @relation("ContactOwner")
 
   @@index([organizationId, active])
   @@map("users")
@@ -112,7 +114,7 @@ model Team {
   deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
   deletedById    String?   @map("deleted_by_id") @db.Uuid
 
-  supervisor User?       @relation("TeamSupervisor", fields: [supervisorId], references: [id], onDelete: SetNull)
+  supervisor User?        @relation("TeamSupervisor", fields: [supervisorId], references: [id], onDelete: SetNull)
   members    TeamMember[]
 
   @@index([organizationId, deletedAt, name])
@@ -262,6 +264,9 @@ model DocumentType {
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
+  companies Company[]
+  contacts  Contact[]
+
   @@unique([organizationId, code])
   @@map("document_types")
 }
@@ -273,6 +278,8 @@ model EconomicSector {
   active         Boolean  @default(true)
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  companies Company[]
 
   @@unique([organizationId, name])
   @@map("economic_sectors")
@@ -401,4 +408,253 @@ model TrashEntry {
   @@index([organizationId, status, deletedAt])
   @@index([organizationId, entityType, entityId])
   @@map("trash_entries")
+}
+
+// ---------------------------------------------------------------------------
+// Fase 2 — Monedas y tipos de cambio (RLS)
+// ---------------------------------------------------------------------------
+
+model Currency {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  /// ISO 4217
+  code           String   @db.Char(3)
+  name           String   @db.VarChar(60)
+  symbol         String   @db.VarChar(5)
+  decimals       Int      @default(2)
+  /// BEFORE | AFTER
+  symbolPosition String   @default("BEFORE") @map("symbol_position") @db.VarChar(6)
+  isBase         Boolean  @default(false) @map("is_base")
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  ratesFrom ExchangeRate[] @relation("RateFrom")
+  ratesTo   ExchangeRate[] @relation("RateTo")
+  products  Product[]
+
+  @@unique([organizationId, code])
+  @@map("currencies")
+}
+
+model ExchangeRate {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  /// Fecha de vigencia
+  rateDate       DateTime @map("rate_date") @db.Date
+  fromCurrency   String   @map("from_currency") @db.Char(3)
+  toCurrency     String   @map("to_currency") @db.Char(3)
+  /// 1 unidad de origen = rate unidades de destino
+  rate           Decimal  @db.Decimal(20, 10)
+  /// ACTIVE | INACTIVE
+  status         String   @default("ACTIVE") @db.VarChar(10)
+  /// MANUAL | IMPORT
+  source         String   @default("MANUAL") @db.VarChar(10)
+  createdById    String?  @map("created_by_id") @db.Uuid
+  updatedById    String?  @map("updated_by_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  from    Currency              @relation("RateFrom", fields: [organizationId, fromCurrency], references: [organizationId, code], onDelete: Restrict)
+  to      Currency              @relation("RateTo", fields: [organizationId, toCurrency], references: [organizationId, code], onDelete: Restrict)
+  history ExchangeRateHistory[]
+
+  @@index([organizationId, fromCurrency, toCurrency, rateDate(sort: Desc)])
+  @@index([organizationId, rateDate])
+  @@map("exchange_rates")
+}
+
+/// Solo inserción: cada modificación de una tasa.
+model ExchangeRateHistory {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  exchangeRateId String   @map("exchange_rate_id") @db.Uuid
+  oldRate        Decimal? @map("old_rate") @db.Decimal(20, 10)
+  newRate        Decimal? @map("new_rate") @db.Decimal(20, 10)
+  oldStatus      String?  @map("old_status") @db.VarChar(10)
+  newStatus      String?  @map("new_status") @db.VarChar(10)
+  reason         String   @db.VarChar(300)
+  userId         String?  @map("user_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  exchangeRate ExchangeRate @relation(fields: [exchangeRateId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, exchangeRateId, createdAt])
+  @@map("exchange_rate_history")
+}
+
+// ---------------------------------------------------------------------------
+// Fase 2 — Productos, compañías y contactos (RLS)
+// ---------------------------------------------------------------------------
+
+model ProductCategory {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  name           String   @db.VarChar(100)
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  products Product[]
+
+  @@unique([organizationId, name])
+  @@map("product_categories")
+}
+
+model Product {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  sku            String    @db.VarChar(60)
+  skuNorm        String    @map("sku_norm") @db.VarChar(60)
+  name           String    @db.VarChar(200)
+  nameNorm       String    @map("name_norm") @db.VarChar(200)
+  description    String?
+  categoryId     String?   @map("category_id") @db.Uuid
+  price          Decimal   @db.Decimal(20, 4)
+  currencyCode   String    @map("currency_code") @db.Char(3)
+  maxDiscountPct Decimal   @default(0) @map("max_discount_pct") @db.Decimal(5, 2)
+  active         Boolean   @default(true)
+  customFields   Json      @default("{}") @map("custom_fields")
+  version        Int       @default(0)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById    String?   @map("created_by_id") @db.Uuid
+  updatedById    String?   @map("updated_by_id") @db.Uuid
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
+  deletedById    String?   @map("deleted_by_id") @db.Uuid
+
+  category ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  currency Currency         @relation(fields: [organizationId, currencyCode], references: [organizationId, code], onDelete: Restrict)
+
+  @@index([organizationId, deletedAt, name])
+  @@map("products")
+}
+
+model Company {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  code           String    @db.VarChar(20)
+  legalName      String    @map("legal_name") @db.VarChar(200)
+  tradeName      String?   @map("trade_name") @db.VarChar(200)
+  taxIdTypeId    String?   @map("tax_id_type_id") @db.Uuid
+  taxId          String?   @map("tax_id") @db.VarChar(20)
+  taxIdNorm      String?   @map("tax_id_norm") @db.VarChar(20)
+  sectorId       String?   @map("sector_id") @db.Uuid
+  address        String?   @db.VarChar(300)
+  city           String?   @db.VarChar(100)
+  country        String    @default("PE") @db.Char(2)
+  email          String?   @db.VarChar(254)
+  emailNorm      String?   @map("email_norm") @db.VarChar(254)
+  phone          String?   @db.VarChar(30)
+  phoneNorm      String?   @map("phone_norm") @db.VarChar(30)
+  website        String?   @db.VarChar(200)
+  ownerId        String?   @map("owner_id") @db.Uuid
+  notes          String?
+  customFields   Json      @default("{}") @map("custom_fields")
+  /// Texto normalizado para búsqueda (razón social, nombre comercial, RUC, código)
+  searchNorm     String    @default("") @map("search_norm")
+  version        Int       @default(0)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById    String?   @map("created_by_id") @db.Uuid
+  updatedById    String?   @map("updated_by_id") @db.Uuid
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
+  deletedById    String?   @map("deleted_by_id") @db.Uuid
+
+  owner           User?            @relation("CompanyOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  taxIdType       DocumentType?    @relation(fields: [taxIdTypeId], references: [id], onDelete: Restrict)
+  sector          EconomicSector?  @relation(fields: [sectorId], references: [id], onDelete: Restrict)
+  contacts        Contact[]
+  relatedContacts ContactCompany[]
+
+  @@index([organizationId, deletedAt, legalName])
+  @@index([organizationId, ownerId])
+  @@map("companies")
+}
+
+model Contact {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  code           String    @db.VarChar(20)
+  firstName      String    @map("first_name") @db.VarChar(100)
+  lastName       String?   @map("last_name") @db.VarChar(100)
+  documentTypeId String?   @map("document_type_id") @db.Uuid
+  documentNumber String?   @map("document_number") @db.VarChar(30)
+  documentNorm   String?   @map("document_norm") @db.VarChar(30)
+  phone          String?   @db.VarChar(30)
+  phoneNorm      String?   @map("phone_norm") @db.VarChar(30)
+  email          String?   @db.VarChar(254)
+  emailNorm      String?   @map("email_norm") @db.VarChar(254)
+  jobTitle       String?   @map("job_title") @db.VarChar(100)
+  companyId      String?   @map("company_id") @db.Uuid
+  ownerId        String?   @map("owner_id") @db.Uuid
+  notes          String?
+  customFields   Json      @default("{}") @map("custom_fields")
+  searchNorm     String    @default("") @map("search_norm")
+  version        Int       @default(0)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById    String?   @map("created_by_id") @db.Uuid
+  updatedById    String?   @map("updated_by_id") @db.Uuid
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
+  deletedById    String?   @map("deleted_by_id") @db.Uuid
+
+  owner            User?            @relation("ContactOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  documentType     DocumentType?    @relation(fields: [documentTypeId], references: [id], onDelete: Restrict)
+  company          Company?         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  relatedCompanies ContactCompany[]
+
+  @@index([organizationId, deletedAt, firstName])
+  @@index([organizationId, ownerId])
+  @@index([organizationId, companyId])
+  @@map("contacts")
+}
+
+model ContactCompany {
+  organizationId String   @map("organization_id") @db.Uuid
+  contactId      String   @map("contact_id") @db.Uuid
+  companyId      String   @map("company_id") @db.Uuid
+  jobTitle       String?  @map("job_title") @db.VarChar(100)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@id([contactId, companyId])
+  @@index([organizationId, companyId])
+  @@map("contact_companies")
+}
+
+// ---------------------------------------------------------------------------
+// Fase 2 — Importaciones (RLS)
+// ---------------------------------------------------------------------------
+
+model ImportJob {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  entityType     String    @map("entity_type") @db.VarChar(30)
+  fileName       String    @map("file_name") @db.VarChar(255)
+  /// xlsx | csv
+  format         String    @db.VarChar(5)
+  /// Ruta relativa a STORAGE_DIR
+  filePath       String    @map("file_path") @db.VarChar(300)
+  /// UPLOADED | COMPLETED | FAILED
+  status         String    @default("UPLOADED") @db.VarChar(12)
+  headers        Json      @default("[]")
+  mapping        Json      @default("{}")
+  duplicateMode  String    @default("SKIP") @map("duplicate_mode") @db.VarChar(10)
+  totalRows      Int       @default(0) @map("total_rows")
+  validRows      Int       @default(0) @map("valid_rows")
+  invalidRows    Int       @default(0) @map("invalid_rows")
+  createdRows    Int       @default(0) @map("created_rows")
+  updatedRows    Int       @default(0) @map("updated_rows")
+  skippedRows    Int       @default(0) @map("skipped_rows")
+  /// Errores por fila del último análisis (para el reporte descargable)
+  errors         Json      @default("[]")
+  createdById    String    @map("created_by_id") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz(3)
+
+  @@index([organizationId, createdAt])
+  @@map("import_jobs")
 }

@@ -5,6 +5,7 @@ import {
   useReactTable,
   type ColumnDef,
   type SortingState,
+  type VisibilityState,
 } from '@tanstack/react-table';
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
@@ -25,6 +26,14 @@ interface DataTableProps<T> {
     onPageChange: (page: number) => void;
   };
   rowClassName?: (row: T) => string | undefined;
+  /** Columnas ocultas (id → false). Ver `ColumnsMenu`. */
+  columnVisibility?: VisibilityState;
+  /** Orden del servidor: si se indica, el orden se pide a la API en lugar de ordenar la página. */
+  serverSort?: {
+    sort: string;
+    dir: 'asc' | 'desc';
+    onChange: (sort: string, dir: 'asc' | 'desc') => void;
+  };
 }
 
 /** Tabla con orden por columna (en la página actual) y paginación del servidor. */
@@ -36,13 +45,25 @@ export function DataTable<T>({
   rowKey,
   pagination,
   rowClassName,
+  columnVisibility,
+  serverSort,
 }: DataTableProps<T>) {
-  const [sorting, setSorting] = useState<SortingState>([]);
+  const [localSorting, setLocalSorting] = useState<SortingState>([]);
+  const sorting: SortingState = serverSort
+    ? [{ id: serverSort.sort, desc: serverSort.dir === 'desc' }]
+    : localSorting;
   const table = useReactTable({
     data,
     columns,
-    state: { sorting },
-    onSortingChange: setSorting,
+    state: { sorting, columnVisibility: columnVisibility ?? {} },
+    manualSorting: !!serverSort,
+    onSortingChange: (updater) => {
+      const next = typeof updater === 'function' ? updater(sorting) : updater;
+      if (!serverSort) return setLocalSorting(next);
+      const first = next[0];
+      if (first) serverSort.onChange(first.id, first.desc ? 'desc' : 'asc');
+      else serverSort.onChange(serverSort.sort, serverSort.dir === 'asc' ? 'desc' : 'asc');
+    },
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getRowId: rowKey,
