@@ -70,7 +70,39 @@ export class SearchController {
           })
         : [],
     ]);
+    const [leads, deals] = await Promise.all([
+      can(user.permissions, 'leads', 'view')
+        ? this.scope.ownerWhere(user, 'leads', 'view').then((w) =>
+            this.db.tx.lead.findMany({
+              where: { organizationId: org, deletedAt: null, ...w, searchNorm: { contains: norm } },
+              select: { id: true, code: true, title: true, stage: { select: { name: true } } },
+              take: LIMIT,
+              orderBy: { createdAt: 'desc' },
+            }),
+          )
+        : [],
+      can(user.permissions, 'deals', 'view')
+        ? this.scope.ownerWhere(user, 'deals', 'view').then((w) =>
+            this.db.tx.deal.findMany({
+              where: { organizationId: org, deletedAt: null, ...w, searchNorm: { contains: norm } },
+              select: { id: true, code: true, title: true, stage: { select: { name: true } } },
+              take: LIMIT,
+              orderBy: { createdAt: 'desc' },
+            }),
+          )
+        : [],
+    ]);
     return {
+      leads: leads.map((l) => ({
+        id: l.id,
+        title: l.title,
+        subtitle: `${l.code} · ${l.stage.name}`,
+      })),
+      deals: deals.map((d) => ({
+        id: d.id,
+        title: d.title,
+        subtitle: `${d.code} · ${d.stage.name}`,
+      })),
       contacts: contacts.map((c) => ({
         id: c.id,
         title: [c.firstName, c.lastName].filter(Boolean).join(' '),

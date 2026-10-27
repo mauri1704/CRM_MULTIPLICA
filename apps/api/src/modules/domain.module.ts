@@ -5,6 +5,10 @@ import { CurrenciesService } from './currencies/currencies.service';
 import { ExchangeRatesService } from './exchange-rates/exchange-rates.service';
 import { ProductsService } from './products/products.service';
 import { TeamsService } from './teams/teams.service';
+import { DealsService } from './deals/deals.service';
+import { LeadsService } from './leads/leads.service';
+import { LineItemsService } from './sales/line-items.service';
+import { StagesService } from './sales/stages';
 
 /**
  * Servicios de dominio. Se cargan también en el worker para que registren sus manejadores de
@@ -17,6 +21,10 @@ const services = [
   ProductsService,
   CompaniesService,
   ContactsService,
+  StagesService,
+  LineItemsService,
+  LeadsService,
+  DealsService,
 ];
 
 @Module({ providers: services, exports: services })

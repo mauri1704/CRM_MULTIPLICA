@@ -131,6 +131,8 @@ export const AUDIT_EVENTS = [
   'MERGE',
   'EXCHANGE_RATE_CHANGED',
   'CURRENCY_CHANGED',
+  'MANUAL_EXCHANGE_RATE',
+  'DEAL_REOPENED',
 ] as const;
 export type AuditEvent = (typeof AUDIT_EVENTS)[number];
 
@@ -159,4 +161,6 @@ export const AUDIT_EVENT_LABELS: Record<AuditEvent, string> = {
   MERGE: 'Fusión de registros',
   EXCHANGE_RATE_CHANGED: 'Tipo de cambio modificado',
   CURRENCY_CHANGED: 'Moneda modificada',
+  MANUAL_EXCHANGE_RATE: 'Tasa de cambio manual aplicada',
+  DEAL_REOPENED: 'Negociación reabierta',
 };

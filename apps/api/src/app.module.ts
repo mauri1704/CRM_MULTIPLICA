@@ -37,6 +37,10 @@ import { ImportExportService } from './modules/import-export/import-export.servi
 import { ImportExportRegistry } from './modules/import-export/registry';
 import { ProductsController } from './modules/products/products.controller';
 import { SearchController } from './modules/search/search.controller';
+import { CommentsController } from './modules/comments/comments.controller';
+import { CommentsService } from './modules/comments/comments.service';
+import { DealsController } from './modules/deals/deals.controller';
+import { LeadsController } from './modules/leads/leads.controller';
 
 export const loggerModule = LoggerModule.forRoot({
   pinoHttp: {
@@ -92,6 +96,9 @@ export const loggerModule = LoggerModule.forRoot({
     ContactsController,
     SearchController,
     ImportExportController,
+    LeadsController,
+    DealsController,
+    CommentsController,
   ],
   providers: [
     AuthService,
@@ -102,6 +109,7 @@ export const loggerModule = LoggerModule.forRoot({
     PipelinesService,
     ImportExportService,
     ImportExportRegistry,
+    CommentsService,
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: AuthGuard },

@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import {
   companyInput,
   contactInput,
+  dealInput,
+  leadInput,
   currencyInput,
   exchangeRateInput,
   normalizeEmail,
@@ -9,6 +11,8 @@ import {
   productInput,
   type CompanyInput,
   type ContactInput,
+  type DealInput,
+  type LeadInput,
   type CurrencyInput,
   type CustomFieldEntity,
   type ExchangeRateInput,
@@ -21,6 +25,10 @@ import { AppError } from '../../common/errors';
 import { zodDetails } from '../../common/http-exception.filter';
 import { Db } from '../../infra/db';
 import { companyQuery } from '../companies/companies.controller';
+import { dealQuery } from '../deals/deals.controller';
+import { DealsService, dealDto } from '../deals/deals.service';
+import { leadQuery } from '../leads/leads.controller';
+import { LeadsService, leadDto } from '../leads/leads.service';
 import { CompaniesService, companyDto } from '../companies/companies.service';
 import { contactQuery } from '../contacts/contacts.controller';
 import { rateListQuery } from '../exchange-rates/exchange-rates.controller';
@@ -94,6 +102,8 @@ export class ImportExportRegistry {
     private readonly currencies: CurrenciesService,
     private readonly rates: ExchangeRatesService,
     private readonly customFields: CustomFieldsService,
+    private readonly leads: LeadsService,
+    private readonly deals: DealsService,
   ) {}
 
   // Búsquedas por valores "humanos" de las celdas -------------------------------------------
@@ -116,6 +126,52 @@ export class ImportExportRegistry {
       category: memo((name) =>
         this.db.tx.productCategory.findFirst({
           where: { organizationId: org, name: { equals: name, mode: 'insensitive' } },
+          select: { id: true },
+        }),
+      ),
+      pipeline: memo((key) => {
+        const [entityType, name] = key.split('|') as [string, string];
+        return this.db.tx.pipeline.findFirst({
+          where: {
+            organizationId: org,
+            entityType,
+            name: { equals: name, mode: 'insensitive' },
+            active: true,
+          },
+          select: { id: true },
+        });
+      }),
+      stage: memo((key) => {
+        const [entityType, pipelineId, name] = key.split('|') as [string, string, string];
+        return this.db.tx.stage.findFirst({
+          where: {
+            organizationId: org,
+            name: { equals: name, mode: 'insensitive' },
+            active: true,
+            pipeline: {
+              entityType,
+              active: true,
+              ...(pipelineId ? { id: pipelineId } : { isDefault: true }),
+            },
+          },
+          select: { id: true, pipelineId: true, kind: true },
+        });
+      }),
+      leadSource: memo((name) =>
+        this.db.tx.leadSource.findFirst({
+          where: { organizationId: org, name: { equals: name, mode: 'insensitive' } },
+          select: { id: true },
+        }),
+      ),
+      priority: memo((name) =>
+        this.db.tx.priority.findFirst({
+          where: { organizationId: org, name: { equals: name, mode: 'insensitive' } },
+          select: { id: true },
+        }),
+      ),
+      contactByEmail: memo((email) =>
+        this.db.tx.contact.findFirst({
+          where: { organizationId: org, deletedAt: null, emailNorm: email.trim().toLowerCase() },
           select: { id: true },
         }),
       ),
@@ -173,6 +229,10 @@ export class ImportExportRegistry {
 
   async create(entity: ImportEntity): Promise<ImportExportDefinition<unknown, unknown>> {
     switch (entity) {
+      case 'leads':
+        return (await this.leadsDef()) as ImportExportDefinition<unknown, unknown>;
+      case 'deals':
+        return (await this.dealsDef()) as ImportExportDefinition<unknown, unknown>;
       case 'contacts':
         return (await this.contactsDef()) as ImportExportDefinition<unknown, unknown>;
       case 'companies':
@@ -184,6 +244,382 @@ export class ImportExportRegistry {
       case 'exchange-rates':
         return this.ratesDef() as ImportExportDefinition<unknown, unknown>;
     }
+  }
+
+  /** Pipeline/etapa por nombre (vacío = por defecto). Solo etapas en curso para registros nuevos. */
+  private async pipelineStage(
+    lk: ReturnType<ImportExportRegistry['lookups']>,
+    entity: 'LEAD' | 'DEAL',
+    v: Record<string, string>,
+    errors: FieldErrors,
+  ) {
+    let pipelineId: string | undefined;
+    if (blank(v.pipeline)) {
+      pipelineId = (await lk.pipeline(`${entity}|${v.pipeline!.trim()}`))?.id;
+      if (!pipelineId) errors.pipeline = `Pipeline «${v.pipeline}» no existe o está inactivo.`;
+    }
+    let stageId: string | undefined;
+    if (blank(v.stage) && !errors.pipeline) {
+      const st = await lk.stage(`${entity}|${pipelineId ?? ''}|${v.stage!.trim()}`);
+      if (!st) errors.stage = `Etapa «${v.stage}» no existe en el pipeline.`;
+      else if (st.kind !== 'OPEN') errors.stage = 'Solo se importa a etapas en curso.';
+      else stageId = st.id;
+    }
+    return { pipelineId, stageId };
+  }
+
+  private async commonRefs(
+    lk: ReturnType<ImportExportRegistry['lookups']>,
+    v: Record<string, string>,
+    errors: FieldErrors,
+  ) {
+    let companyId: string | undefined;
+    if (blank(v.company)) {
+      companyId = (await lk.company(v.company!.trim()))?.id;
+      if (!companyId) errors.company = `No se encontró la compañía «${v.company}».`;
+    }
+    let ownerId: string | undefined;
+    if (blank(v.owner)) {
+      ownerId = (await lk.user(v.owner!.trim()))?.id;
+      if (!ownerId) errors.owner = `No hay un usuario activo con el correo ${v.owner}.`;
+    }
+    let priorityId: string | undefined;
+    if (blank(v.priority)) {
+      priorityId = (await lk.priority(v.priority!.trim()))?.id;
+      if (!priorityId) errors.priority = `Prioridad «${v.priority}» no existe.`;
+    }
+    let estimatedValue: string | undefined;
+    if (blank(v.estimatedValue)) {
+      estimatedValue = parseNumberCell(v.estimatedValue!) ?? undefined;
+      if (estimatedValue === undefined) errors.estimatedValue = 'Valor no válido.';
+    }
+    return { companyId, ownerId, priorityId, estimatedValue };
+  }
+
+  // --- Prospectos -----------------------------------------------------------------------------
+
+  private async leadsDef(): Promise<ImportExportDefinition<LeadInput, ReturnType<typeof leadDto>>> {
+    const lk = this.lookups();
+    const defs = await this.customDefs('LEAD');
+    return {
+      entity: 'leads',
+      module: 'leads',
+      createAction: 'create',
+      updateAction: 'edit',
+      sheetName: 'Prospectos',
+      fields: async () => [
+        { key: 'title', label: 'Nombre o título', required: true },
+        {
+          key: 'contact',
+          label: 'Contacto',
+          required: false,
+          hint: 'Correo de un contacto existente',
+        },
+        { key: 'company', label: 'Compañía', required: false, hint: 'RUC, código o razón social' },
+        { key: 'phone', label: 'Teléfono', required: false },
+        {
+          key: 'email',
+          label: 'Correo',
+          required: false,
+          hint: 'Correo + compañía = clave de correspondencia',
+        },
+        { key: 'source', label: 'Origen', required: false },
+        { key: 'pipeline', label: 'Pipeline', required: false, hint: 'Vacío = por defecto' },
+        { key: 'stage', label: 'Etapa', required: false, hint: 'Vacío = primera etapa' },
+        { key: 'owner', label: 'Responsable', required: false, hint: 'Correo del usuario' },
+        { key: 'priority', label: 'Prioridad', required: false },
+        { key: 'currencyCode', label: 'Moneda', required: false, hint: 'Vacío = moneda principal' },
+        { key: 'estimatedValue', label: 'Valor estimado', required: false },
+        { key: 'notes', label: 'Observaciones', required: false },
+        ...customFieldInfos(defs),
+      ],
+      example: () => ({
+        title: 'Renovación de flota 2027',
+        contact: 'lucia.paredes@andes.pe',
+        company: '20100047218',
+        phone: '',
+        email: 'compras@andes.pe',
+        source: 'Referido',
+        pipeline: '',
+        stage: '',
+        owner: '',
+        priority: 'Alta',
+        currencyCode: 'USD',
+        estimatedValue: '25000',
+        notes: '',
+      }),
+      parse: async (v): Promise<ParsedRow<LeadInput>> => {
+        const errors: FieldErrors = {};
+        const refs = await this.commonRefs(lk, v, errors);
+        const ps = await this.pipelineStage(lk, 'LEAD', v, errors);
+        let contactId: string | undefined;
+        if (blank(v.contact)) {
+          contactId = (await lk.contactByEmail(v.contact!))?.id;
+          if (!contactId) errors.contact = `No hay un contacto con el correo ${v.contact}.`;
+        }
+        let sourceId: string | undefined;
+        if (blank(v.source)) {
+          sourceId = (await lk.leadSource(v.source!.trim()))?.id;
+          if (!sourceId) errors.source = `Origen «${v.source}» no existe.`;
+        }
+        const data = validate<LeadInput>(
+          leadInput,
+          {
+            title: v.title ?? '',
+            contactId,
+            companyId: refs.companyId,
+            phone: v.phone,
+            email: v.email,
+            sourceId,
+            ...ps,
+            ownerId: refs.ownerId,
+            priorityId: refs.priorityId,
+            currencyCode: blank(v.currencyCode),
+            estimatedValue: refs.estimatedValue,
+            notes: v.notes,
+            customFields: this.customInput(defs, v),
+          },
+          errors,
+        );
+        if (!data || Object.keys(errors).length > 0) return { ok: false, errors };
+        const key = data.email
+          ? `lead:${normalizeEmail(data.email)}:${data.companyId ?? ''}`
+          : null;
+        return { ok: true, data, key };
+      },
+      findExisting: async (d) =>
+        d.email
+          ? this.db.tx.lead.findFirst({
+              where: {
+                organizationId: this.db.organizationId,
+                deletedAt: null,
+                emailNorm: normalizeEmail(d.email),
+                companyId: d.companyId ?? null,
+              },
+              select: { id: true, ownerId: true },
+            })
+          : null,
+      check: async (d) => {
+        await this.leads.check(d);
+        await this.customFields.validate('LEAD', d.customFields);
+      },
+      create: async (user, d) => {
+        await this.leads.create(user, d);
+      },
+      update: async (user, existing, { pipelineId: _p, stageId: _s, ...d }) => {
+        await this.leads.update(user, existing.id, d);
+      },
+      exportColumns: async () => [
+        { key: 'code', label: 'Código', value: (r) => r.code },
+        { key: 'title', label: 'Nombre o título', value: (r) => r.title },
+        { key: 'contact', label: 'Contacto', value: (r) => r.contact?.name },
+        { key: 'company', label: 'Compañía', value: (r) => r.company?.legalName },
+        { key: 'phone', label: 'Teléfono', value: (r) => r.phone },
+        { key: 'email', label: 'Correo', value: (r) => r.email },
+        { key: 'source', label: 'Origen', value: (r) => r.source?.name },
+        { key: 'pipeline', label: 'Pipeline', value: (r) => r.pipeline.name },
+        { key: 'stage', label: 'Etapa', value: (r) => r.stage.name },
+        { key: 'owner', label: 'Responsable', value: (r) => r.owner?.name },
+        { key: 'priority', label: 'Prioridad', value: (r) => r.priority?.name },
+        { key: 'currencyCode', label: 'Moneda', value: (r) => r.currencyCode },
+        {
+          key: 'estimatedValue',
+          label: 'Valor estimado',
+          value: (r) => (r.estimatedValue ? Number(r.estimatedValue) : null),
+          numFmt: '#,##0.00',
+        },
+        {
+          key: 'total',
+          label: 'Total productos',
+          value: (r) => Number(r.total),
+          numFmt: '#,##0.00',
+        },
+        { key: 'lossReason', label: 'Motivo de pérdida', value: (r) => r.lossReason?.name },
+        { key: 'deal', label: 'Negociación', value: (r) => r.deal?.code },
+        { key: 'createdAt', label: 'Fecha de creación', value: (r) => r.createdAt },
+        { key: 'notes', label: 'Observaciones', value: (r) => r.notes },
+        ...cfColumns<ReturnType<typeof leadDto>>(defs),
+      ],
+      exportRows: async (user, query, limit) => {
+        const where = await this.leads.where(user, leadQuery.parse(query), 'export');
+        return (await this.leads.listRaw(where, limit)).map(leadDto);
+      },
+    };
+  }
+
+  // --- Negociaciones --------------------------------------------------------------------------
+
+  private async dealsDef(): Promise<ImportExportDefinition<DealInput, ReturnType<typeof dealDto>>> {
+    const lk = this.lookups();
+    const defs = await this.customDefs('DEAL');
+    return {
+      entity: 'deals',
+      module: 'deals',
+      createAction: 'create',
+      updateAction: 'edit',
+      sheetName: 'Negociaciones',
+      fields: async () => [
+        {
+          key: 'title',
+          label: 'Título',
+          required: true,
+          hint: 'Compañía + título = clave de correspondencia',
+        },
+        { key: 'company', label: 'Compañía', required: false, hint: 'RUC, código o razón social' },
+        {
+          key: 'contact',
+          label: 'Contacto principal',
+          required: false,
+          hint: 'Correo de un contacto existente',
+        },
+        { key: 'pipeline', label: 'Pipeline', required: false },
+        { key: 'stage', label: 'Etapa', required: false },
+        { key: 'owner', label: 'Responsable', required: false, hint: 'Correo del usuario' },
+        { key: 'priority', label: 'Prioridad', required: false },
+        { key: 'currencyCode', label: 'Moneda', required: false },
+        { key: 'estimatedValue', label: 'Valor estimado', required: false },
+        { key: 'probability', label: 'Probabilidad (%)', required: false },
+        {
+          key: 'expectedCloseDate',
+          label: 'Fecha estimada de cierre',
+          required: false,
+          hint: 'dd/mm/aaaa',
+        },
+        { key: 'notes', label: 'Observaciones', required: false },
+        ...customFieldInfos(defs),
+      ],
+      example: () => ({
+        title: 'Implementación CRM sede Arequipa',
+        company: '20131312955',
+        contact: 'jsalas@pacifico.pe',
+        pipeline: '',
+        stage: '',
+        owner: '',
+        priority: 'Media',
+        currencyCode: 'PEN',
+        estimatedValue: '45000',
+        probability: '40',
+        expectedCloseDate: '30/12/2026',
+        notes: '',
+      }),
+      parse: async (v): Promise<ParsedRow<DealInput>> => {
+        const errors: FieldErrors = {};
+        const refs = await this.commonRefs(lk, v, errors);
+        const ps = await this.pipelineStage(lk, 'DEAL', v, errors);
+        let contactId: string | undefined;
+        if (blank(v.contact)) {
+          contactId = (await lk.contactByEmail(v.contact!))?.id;
+          if (!contactId) errors.contact = `No hay un contacto con el correo ${v.contact}.`;
+        }
+        let probability: number | undefined;
+        if (blank(v.probability)) {
+          probability = Number(parseNumberCell(v.probability!));
+          if (!Number.isInteger(probability) || probability < 0 || probability > 100)
+            errors.probability = 'Entero entre 0 y 100.';
+        }
+        let expectedCloseDate: string | undefined;
+        if (blank(v.expectedCloseDate)) {
+          expectedCloseDate = parseDateCell(v.expectedCloseDate!) ?? undefined;
+          if (!expectedCloseDate) errors.expectedCloseDate = 'Fecha no válida.';
+        }
+        const data = validate<DealInput>(
+          dealInput,
+          {
+            title: v.title ?? '',
+            companyId: refs.companyId,
+            primaryContactId: contactId,
+            ...ps,
+            ownerId: refs.ownerId,
+            priorityId: refs.priorityId,
+            currencyCode: blank(v.currencyCode),
+            estimatedValue: refs.estimatedValue,
+            probability,
+            expectedCloseDate,
+            notes: v.notes,
+            customFields: this.customInput(defs, v),
+          },
+          errors,
+        );
+        if (!data || Object.keys(errors).length > 0) return { ok: false, errors };
+        return { ok: true, data, key: `deal:${data.companyId ?? ''}:${data.title.toLowerCase()}` };
+      },
+      findExisting: async (d) =>
+        this.db.tx.deal.findFirst({
+          where: {
+            organizationId: this.db.organizationId,
+            deletedAt: null,
+            companyId: d.companyId ?? null,
+            title: { equals: d.title, mode: 'insensitive' },
+          },
+          select: { id: true, ownerId: true },
+        }),
+      check: async (d) => {
+        await this.deals.check(d);
+        await this.customFields.validate('DEAL', d.customFields);
+      },
+      create: async (user, d) => {
+        await this.deals.create(user, d);
+      },
+      update: async (user, existing, { pipelineId: _p, stageId: _s, ...d }) => {
+        await this.deals.update(user, existing.id, d);
+      },
+      exportColumns: async () => [
+        { key: 'code', label: 'Código', value: (r) => r.code },
+        { key: 'title', label: 'Título', value: (r) => r.title },
+        { key: 'company', label: 'Compañía', value: (r) => r.company?.legalName },
+        { key: 'contact', label: 'Contacto principal', value: (r) => r.contacts[0]?.name },
+        { key: 'pipeline', label: 'Pipeline', value: (r) => r.pipeline.name },
+        { key: 'stage', label: 'Etapa', value: (r) => r.stage.name },
+        {
+          key: 'status',
+          label: 'Estado',
+          value: (r) => ({ OPEN: 'Abierta', WON: 'Ganada', LOST: 'Perdida' })[r.status],
+        },
+        { key: 'owner', label: 'Responsable', value: (r) => r.owner?.name },
+        { key: 'priority', label: 'Prioridad', value: (r) => r.priority?.name },
+        { key: 'currencyCode', label: 'Moneda', value: (r) => r.currencyCode },
+        {
+          key: 'estimatedValue',
+          label: 'Valor estimado',
+          value: (r) => (r.estimatedValue ? Number(r.estimatedValue) : null),
+          numFmt: '#,##0.00',
+        },
+        {
+          key: 'subtotal',
+          label: 'Subtotal',
+          value: (r) => Number(r.subtotal),
+          numFmt: '#,##0.00',
+        },
+        {
+          key: 'discount',
+          label: 'Descuento',
+          value: (r) => Number(r.discount),
+          numFmt: '#,##0.00',
+        },
+        { key: 'total', label: 'Total', value: (r) => Number(r.total), numFmt: '#,##0.00' },
+        {
+          key: 'finalValue',
+          label: 'Valor final',
+          value: (r) => (r.finalValue ? Number(r.finalValue) : null),
+          numFmt: '#,##0.00',
+        },
+        { key: 'probability', label: 'Probabilidad (%)', value: (r) => r.probability },
+        {
+          key: 'expectedCloseDate',
+          label: 'Fecha estimada de cierre',
+          value: (r) => r.expectedCloseDate,
+        },
+        { key: 'closedAt', label: 'Fecha de cierre', value: (r) => r.closedAt },
+        { key: 'lossReason', label: 'Motivo de pérdida', value: (r) => r.lossReason?.name },
+        { key: 'sourceLead', label: 'Prospecto de origen', value: (r) => r.sourceLead?.code },
+        { key: 'createdAt', label: 'Fecha de creación', value: (r) => r.createdAt },
+        ...cfColumns<ReturnType<typeof dealDto>>(defs),
+      ],
+      exportRows: async (user, query, limit) => {
+        const where = await this.deals.where(user, dealQuery.parse(query), 'export');
+        return (await this.deals.listRaw(where, limit)).map(dealDto);
+      },
+    };
   }
 
   // --- Contactos ------------------------------------------------------------------------------

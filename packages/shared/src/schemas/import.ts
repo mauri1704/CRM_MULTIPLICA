@@ -2,6 +2,8 @@ import { z } from 'zod';
 
 /** Entidades con importación/exportación en la Fase 2 (se suman las demás en sus fases). */
 export const IMPORT_ENTITIES = [
+  'leads',
+  'deals',
   'contacts',
   'companies',
   'products',
@@ -11,6 +13,8 @@ export const IMPORT_ENTITIES = [
 export type ImportEntity = (typeof IMPORT_ENTITIES)[number];
 
 export const IMPORT_ENTITY_LABELS: Record<ImportEntity, string> = {
+  leads: 'Prospectos',
+  deals: 'Negociaciones',
   contacts: 'Contactos',
   companies: 'Compañías',
   products: 'Productos',

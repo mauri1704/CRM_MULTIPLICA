@@ -386,14 +386,21 @@ export class CompaniesService implements OnModuleInit, TrashHandler {
   }
 
   async purgeBlockers(entityId: string): Promise<string[]> {
-    const contacts = await this.db.tx.contact.count({
-      where: { organizationId: this.db.organizationId, companyId: entityId },
-    });
-    return contacts > 0
-      ? [
-          `${contacts} contacto(s) (vigentes o en papelera) la tienen como compañía principal. Cámbieles la compañía primero.`,
-        ]
-      : [];
+    const org = this.db.organizationId;
+    const [contacts, leads, deals] = await Promise.all([
+      this.db.tx.contact.count({ where: { organizationId: org, companyId: entityId } }),
+      this.db.tx.lead.count({ where: { organizationId: org, companyId: entityId } }),
+      this.db.tx.deal.count({ where: { organizationId: org, companyId: entityId } }),
+    ]);
+    return [
+      ...(contacts > 0
+        ? [
+            `${contacts} contacto(s) (vigentes o en papelera) la tienen como compañía principal. Cámbieles la compañía primero.`,
+          ]
+        : []),
+      ...(leads > 0 ? [`Está en ${leads} prospecto(s).`] : []),
+      ...(deals > 0 ? [`Está en ${deals} negociación(es).`] : []),
+    ];
   }
 
   async purge(entityId: string): Promise<void> {

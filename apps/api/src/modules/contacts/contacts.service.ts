@@ -366,9 +366,17 @@ export class ContactsService implements OnModuleInit, TrashHandler {
     });
   }
 
-  async purgeBlockers(_entityId: string): Promise<string[]> {
-    // Fase 3: un contacto con prospectos o negociaciones no se elimina definitivamente.
-    return [];
+  /** Un contacto usado en prospectos o negociaciones (vigentes o en papelera) no se elimina. */
+  async purgeBlockers(entityId: string): Promise<string[]> {
+    const org = this.db.organizationId;
+    const [leads, deals] = await Promise.all([
+      this.db.tx.lead.count({ where: { organizationId: org, contactId: entityId } }),
+      this.db.tx.dealContact.count({ where: { organizationId: org, contactId: entityId } }),
+    ]);
+    return [
+      ...(leads > 0 ? [`Está en ${leads} prospecto(s).`] : []),
+      ...(deals > 0 ? [`Está en ${deals} negociación(es).`] : []),
+    ];
   }
 
   async purge(entityId: string): Promise<void> {

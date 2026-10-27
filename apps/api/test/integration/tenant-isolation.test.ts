@@ -132,6 +132,12 @@ describe('Row-Level Security (segunda barrera, en la base de datos)', () => {
     'contacts',
     'contact_companies',
     'import_jobs',
+    'leads',
+    'deals',
+    'deal_contacts',
+    'lead_products',
+    'deal_products',
+    'comments',
   ];
 
   it('todas las tablas de organización tienen RLS activo', async () => {

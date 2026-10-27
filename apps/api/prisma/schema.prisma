@@ -60,6 +60,9 @@ model User {
   ownedCompanies Company[]            @relation("CompanyOwner")
   ownedContacts  Contact[]            @relation("ContactOwner")
 
+  ownedLeads Lead[] @relation("LeadOwner")
+  ownedDeals Deal[] @relation("DealOwner")
+
   @@index([organizationId, active])
   @@map("users")
 }
@@ -186,6 +189,9 @@ model Pipeline {
 
   stages Stage[]
 
+  leads Lead[]
+  deals Deal[]
+
   @@unique([organizationId, entityType, name])
   @@map("pipelines")
 }
@@ -206,6 +212,9 @@ model Stage {
 
   pipeline Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Restrict)
 
+  leads Lead[]
+  deals Deal[]
+
   @@index([organizationId, pipelineId, position])
   @@map("stages")
 }
@@ -223,6 +232,9 @@ model Priority {
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
+  leads Lead[]
+  deals Deal[]
+
   @@unique([organizationId, name])
   @@map("priorities")
 }
@@ -234,6 +246,8 @@ model LeadSource {
   active         Boolean  @default(true)
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  leads Lead[]
 
   @@unique([organizationId, name])
   @@map("lead_sources")
@@ -248,6 +262,9 @@ model LossReason {
   active         Boolean  @default(true)
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  leads Lead[]
+  deals Deal[]
 
   @@unique([organizationId, entityType, name])
   @@map("loss_reasons")
@@ -433,6 +450,9 @@ model Currency {
   ratesTo   ExchangeRate[] @relation("RateTo")
   products  Product[]
 
+  leads Lead[]
+  deals Deal[]
+
   @@unique([organizationId, code])
   @@map("currencies")
 }
@@ -526,6 +546,9 @@ model Product {
   category ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   currency Currency         @relation(fields: [organizationId, currencyCode], references: [organizationId, code], onDelete: Restrict)
 
+  leadProducts LeadProduct[]
+  dealProducts DealProduct[]
+
   @@index([organizationId, deletedAt, name])
   @@map("products")
 }
@@ -567,6 +590,10 @@ model Company {
   contacts        Contact[]
   relatedContacts ContactCompany[]
 
+  leads    Lead[]
+  deals    Deal[]
+  comments Comment[]
+
   @@index([organizationId, deletedAt, legalName])
   @@index([organizationId, ownerId])
   @@map("companies")
@@ -603,6 +630,10 @@ model Contact {
   documentType     DocumentType?    @relation(fields: [documentTypeId], references: [id], onDelete: Restrict)
   company          Company?         @relation(fields: [companyId], references: [id], onDelete: Restrict)
   relatedCompanies ContactCompany[]
+
+  leads        Lead[]
+  dealContacts DealContact[]
+  comments     Comment[]
 
   @@index([organizationId, deletedAt, firstName])
   @@index([organizationId, ownerId])
@@ -657,4 +688,234 @@ model ImportJob {
 
   @@index([organizationId, createdAt])
   @@map("import_jobs")
+}
+
+// ---------------------------------------------------------------------------
+// Fase 3 — Prospectos, negociaciones, productos asociados y comentarios (RLS)
+// ---------------------------------------------------------------------------
+
+model Lead {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  code           String    @db.VarChar(20)
+  title          String    @db.VarChar(200)
+  contactId      String?   @map("contact_id") @db.Uuid
+  companyId      String?   @map("company_id") @db.Uuid
+  phone          String?   @db.VarChar(30)
+  email          String?   @db.VarChar(254)
+  emailNorm      String?   @map("email_norm") @db.VarChar(254)
+  sourceId       String?   @map("source_id") @db.Uuid
+  pipelineId     String    @map("pipeline_id") @db.Uuid
+  stageId        String    @map("stage_id") @db.Uuid
+  /// Orden dentro de la columna del Kanban (fraccionario para insertar sin renumerar).
+  stagePosition  Float     @default(0) @map("stage_position")
+  stageChangedAt DateTime  @default(now()) @map("stage_changed_at") @db.Timestamptz(3)
+  ownerId        String?   @map("owner_id") @db.Uuid
+  priorityId     String?   @map("priority_id") @db.Uuid
+  currencyCode   String    @map("currency_code") @db.Char(3)
+  estimatedValue Decimal?  @map("estimated_value") @db.Decimal(20, 4)
+  /// Totales de los productos de interés, en la moneda del prospecto (guardados, no recalculados al leer).
+  subtotal       Decimal   @default(0) @db.Decimal(20, 4)
+  discount       Decimal   @default(0) @db.Decimal(20, 4)
+  total          Decimal   @default(0) @db.Decimal(20, 4)
+  notes          String?
+  lossReasonId   String?   @map("loss_reason_id") @db.Uuid
+  lossNote       String?   @map("loss_note") @db.VarChar(1000)
+  convertedAt    DateTime? @map("converted_at") @db.Timestamptz(3)
+  customFields   Json      @default("{}") @map("custom_fields")
+  searchNorm     String    @default("") @map("search_norm")
+  version        Int       @default(0)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById    String?   @map("created_by_id") @db.Uuid
+  updatedById    String?   @map("updated_by_id") @db.Uuid
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
+  deletedById    String?   @map("deleted_by_id") @db.Uuid
+
+  contact    Contact?      @relation(fields: [contactId], references: [id], onDelete: Restrict)
+  company    Company?      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  source     LeadSource?   @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  pipeline   Pipeline      @relation(fields: [pipelineId], references: [id], onDelete: Restrict)
+  stage      Stage         @relation(fields: [stageId], references: [id], onDelete: Restrict)
+  owner      User?         @relation("LeadOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  priority   Priority?     @relation(fields: [priorityId], references: [id], onDelete: Restrict)
+  lossReason LossReason?   @relation(fields: [lossReasonId], references: [id], onDelete: Restrict)
+  currency   Currency      @relation(fields: [organizationId, currencyCode], references: [organizationId, code], onDelete: Restrict)
+  products   LeadProduct[]
+  deal       Deal?
+  comments   Comment[]
+
+  @@index([organizationId, pipelineId, stageId, stagePosition])
+  @@index([organizationId, deletedAt, createdAt])
+  @@index([organizationId, ownerId])
+  @@map("leads")
+}
+
+model Deal {
+  id                String    @id @default(uuid(7)) @db.Uuid
+  organizationId    String    @map("organization_id") @db.Uuid
+  code              String    @db.VarChar(20)
+  title             String    @db.VarChar(200)
+  /// Prospecto del que proviene (único: un prospecto se convierte una sola vez).
+  sourceLeadId      String?   @unique @map("source_lead_id") @db.Uuid
+  companyId         String?   @map("company_id") @db.Uuid
+  pipelineId        String    @map("pipeline_id") @db.Uuid
+  stageId           String    @map("stage_id") @db.Uuid
+  stagePosition     Float     @default(0) @map("stage_position")
+  stageChangedAt    DateTime  @default(now()) @map("stage_changed_at") @db.Timestamptz(3)
+  ownerId           String?   @map("owner_id") @db.Uuid
+  priorityId        String?   @map("priority_id") @db.Uuid
+  currencyCode      String    @map("currency_code") @db.Char(3)
+  estimatedValue    Decimal?  @map("estimated_value") @db.Decimal(20, 4)
+  subtotal          Decimal   @default(0) @db.Decimal(20, 4)
+  discount          Decimal   @default(0) @db.Decimal(20, 4)
+  total             Decimal   @default(0) @db.Decimal(20, 4)
+  finalValue        Decimal?  @map("final_value") @db.Decimal(20, 4)
+  probability       Int?
+  expectedCloseDate DateTime? @map("expected_close_date") @db.Date
+  /// OPEN | WON | LOST (sigue al tipo de la etapa)
+  status            String    @default("OPEN") @db.VarChar(6)
+  closedAt          DateTime? @map("closed_at") @db.Date
+  lossReasonId      String?   @map("loss_reason_id") @db.Uuid
+  lossNote          String?   @map("loss_note") @db.VarChar(1000)
+  notes             String?
+  customFields      Json      @default("{}") @map("custom_fields")
+  searchNorm        String    @default("") @map("search_norm")
+  version           Int       @default(0)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById       String?   @map("created_by_id") @db.Uuid
+  updatedById       String?   @map("updated_by_id") @db.Uuid
+  deletedAt         DateTime? @map("deleted_at") @db.Timestamptz(3)
+  deletedById       String?   @map("deleted_by_id") @db.Uuid
+
+  sourceLead Lead?         @relation(fields: [sourceLeadId], references: [id], onDelete: Restrict)
+  company    Company?      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  pipeline   Pipeline      @relation(fields: [pipelineId], references: [id], onDelete: Restrict)
+  stage      Stage         @relation(fields: [stageId], references: [id], onDelete: Restrict)
+  owner      User?         @relation("DealOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  priority   Priority?     @relation(fields: [priorityId], references: [id], onDelete: Restrict)
+  lossReason LossReason?   @relation(fields: [lossReasonId], references: [id], onDelete: Restrict)
+  currency   Currency      @relation(fields: [organizationId, currencyCode], references: [organizationId, code], onDelete: Restrict)
+  contacts   DealContact[]
+  products   DealProduct[]
+  comments   Comment[]
+
+  @@index([organizationId, pipelineId, stageId, stagePosition])
+  @@index([organizationId, deletedAt, createdAt])
+  @@index([organizationId, ownerId])
+  @@index([organizationId, status, closedAt])
+  @@map("deals")
+}
+
+model DealContact {
+  organizationId String   @map("organization_id") @db.Uuid
+  dealId         String   @map("deal_id") @db.Uuid
+  contactId      String   @map("contact_id") @db.Uuid
+  isPrimary      Boolean  @default(false) @map("is_primary")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  deal    Deal    @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Restrict)
+
+  @@id([dealId, contactId])
+  @@index([organizationId, contactId])
+  @@map("deal_contacts")
+}
+
+/// Producto de interés de un prospecto. Copia los valores comerciales: no cambia si cambia el catálogo.
+model LeadProduct {
+  id               String    @id @default(uuid(7)) @db.Uuid
+  organizationId   String    @map("organization_id") @db.Uuid
+  leadId           String    @map("lead_id") @db.Uuid
+  productId        String    @map("product_id") @db.Uuid
+  position         Int       @default(0)
+  sku              String    @db.VarChar(60)
+  description      String    @db.VarChar(500)
+  quantity         Decimal   @db.Decimal(18, 4)
+  unitPrice        Decimal   @map("unit_price") @db.Decimal(20, 4)
+  /// Moneda original del precio
+  currencyCode     String    @map("currency_code") @db.Char(3)
+  /// AMOUNT | PERCENT
+  discountType     String    @default("PERCENT") @map("discount_type") @db.VarChar(8)
+  discountValue    Decimal   @default(0) @map("discount_value") @db.Decimal(20, 4)
+  /// Tasa aplicada (1 si la moneda coincide) y su origen
+  exchangeRate     Decimal   @default(1) @map("exchange_rate") @db.Decimal(20, 10)
+  exchangeRateDate DateTime? @map("exchange_rate_date") @db.Date
+  exchangeRateId   String?   @map("exchange_rate_id") @db.Uuid
+  /// MASTER | INVERSE | MANUAL | NONE
+  rateSource       String    @default("NONE") @map("rate_source") @db.VarChar(8)
+  rateReason       String?   @map("rate_reason") @db.VarChar(300)
+  /// Importes en la moneda del prospecto, redondeados a sus decimales
+  lineSubtotal     Decimal   @map("line_subtotal") @db.Decimal(20, 4)
+  lineDiscount     Decimal   @map("line_discount") @db.Decimal(20, 4)
+  lineTotal        Decimal   @map("line_total") @db.Decimal(20, 4)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  lead    Lead    @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, leadId, position])
+  @@index([organizationId, productId])
+  @@map("lead_products")
+}
+
+model DealProduct {
+  id                  String    @id @default(uuid(7)) @db.Uuid
+  organizationId      String    @map("organization_id") @db.Uuid
+  dealId              String    @map("deal_id") @db.Uuid
+  productId           String    @map("product_id") @db.Uuid
+  sourceLeadProductId String?   @map("source_lead_product_id") @db.Uuid
+  position            Int       @default(0)
+  sku                 String    @db.VarChar(60)
+  description         String    @db.VarChar(500)
+  quantity            Decimal   @db.Decimal(18, 4)
+  unitPrice           Decimal   @map("unit_price") @db.Decimal(20, 4)
+  currencyCode        String    @map("currency_code") @db.Char(3)
+  discountType        String    @default("PERCENT") @map("discount_type") @db.VarChar(8)
+  discountValue       Decimal   @default(0) @map("discount_value") @db.Decimal(20, 4)
+  exchangeRate        Decimal   @default(1) @map("exchange_rate") @db.Decimal(20, 10)
+  exchangeRateDate    DateTime? @map("exchange_rate_date") @db.Date
+  exchangeRateId      String?   @map("exchange_rate_id") @db.Uuid
+  rateSource          String    @default("NONE") @map("rate_source") @db.VarChar(8)
+  rateReason          String?   @map("rate_reason") @db.VarChar(300)
+  lineSubtotal        Decimal   @map("line_subtotal") @db.Decimal(20, 4)
+  lineDiscount        Decimal   @map("line_discount") @db.Decimal(20, 4)
+  lineTotal           Decimal   @map("line_total") @db.Decimal(20, 4)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  deal    Deal    @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, dealId, position])
+  @@index([organizationId, productId])
+  @@map("deal_products")
+}
+
+model Comment {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  leadId         String?   @map("lead_id") @db.Uuid
+  dealId         String?   @map("deal_id") @db.Uuid
+  contactId      String?   @map("contact_id") @db.Uuid
+  companyId      String?   @map("company_id") @db.Uuid
+  body           String
+  authorId       String    @map("author_id") @db.Uuid
+  mentions       String[]  @default([]) @db.Uuid
+  editedAt       DateTime? @map("edited_at") @db.Timestamptz(3)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  lead    Lead?    @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  deal    Deal?    @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  contact Contact? @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  company Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, leadId, createdAt])
+  @@index([organizationId, dealId, createdAt])
+  @@index([organizationId, contactId, createdAt])
+  @@index([organizationId, companyId, createdAt])
+  @@map("comments")
 }

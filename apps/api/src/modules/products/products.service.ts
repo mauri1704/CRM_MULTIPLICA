@@ -281,9 +281,17 @@ export class ProductsService implements OnModuleInit, TrashHandler {
     });
   }
 
-  async purgeBlockers(_entityId: string): Promise<string[]> {
-    // Fase 3: los productos usados en prospectos o negociaciones no se eliminan definitivamente.
-    return [];
+  /** Un producto usado en prospectos o negociaciones no se elimina: son registros históricos. */
+  async purgeBlockers(entityId: string): Promise<string[]> {
+    const org = this.db.organizationId;
+    const [leads, deals] = await Promise.all([
+      this.db.tx.leadProduct.count({ where: { organizationId: org, productId: entityId } }),
+      this.db.tx.dealProduct.count({ where: { organizationId: org, productId: entityId } }),
+    ]);
+    return [
+      ...(leads > 0 ? [`Está en ${leads} línea(s) de prospectos.`] : []),
+      ...(deals > 0 ? [`Está en ${deals} línea(s) de negociaciones.`] : []),
+    ];
   }
 
   async purge(entityId: string): Promise<void> {
