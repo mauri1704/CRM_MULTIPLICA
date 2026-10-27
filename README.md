@@ -15,8 +15,9 @@ motor de automatizaciones comerciales.
 | 0 — Diseño y andamiaje                                        | ✅ Decisiones aprobadas  |
 | 1 — Base del sistema                                          | ✅ Entregada (ver abajo) |
 | 2 — Contactos, compañías, productos, monedas, tipos de cambio | ✅ Entregada (ver abajo) |
-| 3 — Prospectos, negociaciones, conversión                     | Siguiente                |
-| 4 a 6                                                         | Pendientes               |
+| 3 — Prospectos, negociaciones, conversión                     | ✅ Entregada (ver abajo) |
+| 4 — Tareas y proyectos                                        | Siguiente                |
+| 5 y 6                                                         | Pendientes               |
 
 ### Fase 1 — qué incluye
 
@@ -61,6 +62,26 @@ motor de automatizaciones comerciales.
   Máximo 5.000 filas por importación y 50.000 por exportación (lo mayor irá al worker en la Fase 5).
 - **Búsqueda global** (Ctrl+K) en contactos, compañías y productos, según permisos.
 - **Calidad:** 72 pruebas de integración y 12 E2E.
+
+### Fase 3 — qué incluye
+
+- **Prospectos y negociaciones:** tablero Kanban por pipeline (arrastrar con ratón, táctil o
+  teclado) y vista de lista con filtros, orden y paginación; sumas por columna y por moneda;
+  prioridades con texto + ícono + color; código correlativo (`PRO-`, `NEG-`); responsable con
+  alcance por registro; campos personalizados; papelera e historial.
+- **Cierre:** pasar a «Perdida/Descartado» exige motivo; ganar pide valor final y fecha de cierre y
+  congela importes y tasas; reabrir requiere permiso de equipo y queda en la auditoría.
+- **Productos asociados:** cantidad, precio, descuento por importe o porcentaje (con el máximo del
+  producto), decimal exacto y redondeo por línea; productos en otra moneda con la tasa vigente
+  (D-05) guardada en la línea, tasa manual con motivo para usuarios autorizados y «Actualizar
+  tasas» mientras la negociación esté abierta.
+- **Conversión (D-07):** vista previa de lo que se copia (contacto principal, compañía,
+  responsable, prioridad, productos reconvertidos y campos personalizados equivalentes); una sola
+  negociación por prospecto, aun con conversiones simultáneas; el prospecto queda en solo lectura
+  y enlazado.
+- **Comentarios** con menciones que notifican; búsqueda global e importación/exportación también
+  para prospectos y negociaciones.
+- **Calidad:** 90 pruebas de integración y 14 E2E.
 
 ## Puesta en marcha
 

@@ -315,7 +315,130 @@ export interface ImportJob {
 }
 
 export interface SearchResult {
+  leads: { id: string; title: string; subtitle: string }[];
+  deals: { id: string; title: string; subtitle: string }[];
   contacts: { id: string; title: string; subtitle: string }[];
   companies: { id: string; title: string; subtitle: string }[];
   products: { id: string; title: string; subtitle: string }[];
+}
+
+// ---------------------------------------------------------------------------
+// Fase 3
+// ---------------------------------------------------------------------------
+
+export interface PriorityRef {
+  id: string;
+  name: string;
+  color: string;
+  icon: string;
+  rank: number;
+}
+
+export interface StageRef {
+  id: string;
+  name: string;
+  kind: 'OPEN' | 'WON' | 'LOST' | 'CONVERTED';
+  color: string;
+  probability?: number | null;
+}
+
+export interface Line {
+  id: string;
+  productId: string;
+  sku: string;
+  description: string;
+  quantity: string;
+  unitPrice: string;
+  currencyCode: string;
+  discountType: 'AMOUNT' | 'PERCENT';
+  discountValue: string;
+  exchangeRate: string;
+  exchangeRateDate: string | null;
+  rateSource: 'NONE' | 'MASTER' | 'INVERSE' | 'MANUAL';
+  rateReason: string | null;
+  lineSubtotal: string;
+  lineDiscount: string;
+  lineTotal: string;
+}
+
+interface SalesBase {
+  id: string;
+  code: string;
+  title: string;
+  company: CompanyRef | null;
+  companyId: string | null;
+  pipeline: Ref;
+  pipelineId: string;
+  stage: StageRef;
+  stageId: string;
+  stageChangedAt: string;
+  owner: Ref | null;
+  ownerId: string | null;
+  priority: PriorityRef | null;
+  priorityId: string | null;
+  currencyCode: string;
+  estimatedValue: string | null;
+  subtotal: string;
+  discount: string;
+  total: string;
+  notes: string | null;
+  lossReason: Ref | null;
+  lossReasonId: string | null;
+  lossNote: string | null;
+  customFields: CustomValues;
+  version: number;
+  createdAt: string;
+}
+
+export interface Lead extends SalesBase {
+  contact: { id: string; code: string; name: string; email: string | null } | null;
+  contactId: string | null;
+  phone: string | null;
+  email: string | null;
+  source: Ref | null;
+  sourceId: string | null;
+  convertedAt: string | null;
+  deal: { id: string; code: string; title: string } | null;
+  products?: Line[];
+}
+
+export interface Deal extends SalesBase {
+  sourceLead: { id: string; code: string; title: string } | null;
+  contacts: {
+    id: string;
+    code: string;
+    name: string;
+    email: string | null;
+    phone: string | null;
+    isPrimary: boolean;
+  }[];
+  finalValue: string | null;
+  probability: number | null;
+  expectedCloseDate: string | null;
+  status: 'OPEN' | 'WON' | 'LOST';
+  closedAt: string | null;
+  products?: Line[];
+}
+
+export interface BoardColumn<T> {
+  stage: StageRef;
+  count: number;
+  sums: { currencyCode: string; amount: string }[];
+  items: T[];
+}
+
+export interface Board<T> {
+  pipeline: Ref;
+  truncated: boolean;
+  columns: BoardColumn<T>[];
+}
+
+export interface CommentItem {
+  id: string;
+  body: string;
+  author: Ref;
+  mentions: Ref[];
+  editedAt: string | null;
+  createdAt: string;
+  mine: boolean;
 }

@@ -1,6 +1,6 @@
 import * as RD from '@radix-ui/react-dialog';
 import { useQuery } from '@tanstack/react-query';
-import { Building2, Contact, Loader2, Package, Search } from 'lucide-react';
+import { Building2, Contact, Handshake, Loader2, Package, Search, Target } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { api } from '@/lib/api';
@@ -8,6 +8,8 @@ import { cn } from '@/lib/cn';
 import type { SearchResult } from '@/lib/types';
 
 const GROUPS = [
+  { key: 'leads', label: 'Prospectos', icon: Target, path: '/prospectos' },
+  { key: 'deals', label: 'Negociaciones', icon: Handshake, path: '/negociaciones' },
   { key: 'contacts', label: 'Contactos', icon: Contact, path: '/contactos' },
   { key: 'companies', label: 'Compañías', icon: Building2, path: '/companias' },
   { key: 'products', label: 'Productos', icon: Package, path: '/productos' },
@@ -69,7 +71,7 @@ export function GlobalSearch() {
         aria-label="Buscar (Ctrl+K)"
       >
         <Search className="h-4 w-4" aria-hidden />
-        <span className="flex-1 text-left">Buscar contactos, compañías, productos…</span>
+        <span className="flex-1 text-left">Buscar prospectos, negociaciones, contactos…</span>
         <kbd className="hidden rounded border border-border px-1.5 text-[10px] sm:inline">
           Ctrl K
         </kbd>

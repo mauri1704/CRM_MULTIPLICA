@@ -17,6 +17,8 @@ import { NotFoundPage } from '@/features/home/not-found-page';
 import { TrashPage } from '@/features/trash/trash-page';
 import { CompaniesPage } from '@/features/companies/companies-page';
 import { ContactsPage } from '@/features/contacts/contacts-page';
+import { DealsPage } from '@/features/deals/deals-page';
+import { LeadsPage } from '@/features/leads/leads-page';
 import { ImportsPage } from '@/features/import-export/imports-page';
 import { CurrenciesPage } from '@/features/money/currencies-page';
 import { ExchangeRatesPage } from '@/features/money/exchange-rates-page';
@@ -34,6 +36,22 @@ export const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <HomePage /> },
+      {
+        path: 'prospectos',
+        element: (
+          <RequirePermission module="leads" action="view">
+            <LeadsPage />
+          </RequirePermission>
+        ),
+      },
+      {
+        path: 'negociaciones',
+        element: (
+          <RequirePermission module="deals" action="view">
+            <DealsPage />
+          </RequirePermission>
+        ),
+      },
       {
         path: 'contactos',
         element: (

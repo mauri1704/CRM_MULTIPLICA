@@ -8,18 +8,9 @@ import {
 } from '@crm/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
-import {
-  ChevronDown,
-  ChevronUp,
-  ChevronsUp,
-  Equal,
-  Flag,
-  ListChecks,
-  Plus,
-  Star,
-  type LucideIcon,
-} from 'lucide-react';
+import { ListChecks, Plus, Star } from 'lucide-react';
 import { useState } from 'react';
+import { PriorityBadge } from '@/components/priority-badge';
 import { HistoryButton } from '@/components/history-drawer';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/data-table';
@@ -34,13 +25,6 @@ import { ApiError, api, errorMessage } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import type { CatalogItem } from '@/lib/types';
 
-export const PRIORITY_ICON: Record<string, LucideIcon> = {
-  'chevrons-up': ChevronsUp,
-  'chevron-up': ChevronUp,
-  equal: Equal,
-  'chevron-down': ChevronDown,
-  flag: Flag,
-};
 const PRIORITY_ICON_LABELS: Record<string, string> = {
   'chevrons-up': 'Doble flecha arriba',
   'chevron-up': 'Flecha arriba',
@@ -48,28 +32,6 @@ const PRIORITY_ICON_LABELS: Record<string, string> = {
   'chevron-down': 'Flecha abajo',
   flag: 'Bandera',
 };
-
-/** Distintivo de prioridad: ícono + texto + color (nunca solo color). */
-export function PriorityBadge({
-  name,
-  color,
-  icon,
-}: {
-  name: string;
-  color: string;
-  icon: string;
-}) {
-  const Icon = PRIORITY_ICON[icon] ?? Flag;
-  return (
-    <span
-      className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold"
-      style={{ borderColor: color, color }}
-    >
-      <Icon className="h-3.5 w-3.5" aria-hidden />
-      {name}
-    </span>
-  );
-}
 
 export function CatalogsPage() {
   const [kind, setKind] = useState<CatalogKind>('priorities');

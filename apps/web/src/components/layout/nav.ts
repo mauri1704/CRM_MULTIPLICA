@@ -8,6 +8,8 @@ import {
   FileSpreadsheet,
   Package,
   GitBranch,
+  Handshake,
+  Target,
   Home,
   KeyRound,
   ListChecks,
@@ -30,6 +32,8 @@ export interface NavItem {
 }
 
 export const IMPORT_PERMISSIONS: [PermissionModule, PermissionAction][] = [
+  ['leads', 'import'],
+  ['deals', 'import'],
   ['contacts', 'import'],
   ['companies', 'import'],
   ['products', 'import'],
@@ -42,15 +46,19 @@ export interface NavSection {
   items: NavItem[];
 }
 
-/**
- * Menú lateral. Solo aparecen los módulos ya construidos (Fase 1); los comerciales se suman en
- * las fases siguientes.
- */
+/** Menú lateral: solo los módulos ya construidos; los demás se suman en las fases siguientes. */
 export const NAV: NavSection[] = [
   { items: [{ to: '/', label: 'Inicio', icon: Home }] },
   {
     title: 'Comercial',
     items: [
+      { to: '/prospectos', label: 'Prospectos', icon: Target, permission: ['leads', 'view'] },
+      {
+        to: '/negociaciones',
+        label: 'Negociaciones',
+        icon: Handshake,
+        permission: ['deals', 'view'],
+      },
       { to: '/contactos', label: 'Contactos', icon: Contact, permission: ['contacts', 'view'] },
       { to: '/companias', label: 'Compañías', icon: Building, permission: ['companies', 'view'] },
     ],

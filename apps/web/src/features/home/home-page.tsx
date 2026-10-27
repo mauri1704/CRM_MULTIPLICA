@@ -5,6 +5,8 @@ import {
   Building2,
   Contact,
   GitBranch,
+  Handshake,
+  Target,
   KeyRound,
   ListChecks,
   Package,
@@ -26,6 +28,20 @@ interface Shortcut {
 }
 
 const SHORTCUTS: Shortcut[] = [
+  {
+    to: '/prospectos',
+    label: 'Prospectos',
+    description: 'Tablero de oportunidades y conversión',
+    icon: Target,
+    permission: ['leads', 'view'],
+  },
+  {
+    to: '/negociaciones',
+    label: 'Negociaciones',
+    description: 'Pipeline comercial hasta el cierre',
+    icon: Handshake,
+    permission: ['deals', 'view'],
+  },
   {
     to: '/contactos',
     label: 'Contactos',
@@ -116,12 +132,12 @@ export function HomePage() {
         description={`${user.organization.name} · ${user.roleName}`}
       />
       <Card className="mb-6 p-5">
-        <h2 className="font-semibold">Contactos, compañías y catálogo disponibles</h2>
+        <h2 className="font-semibold">Ciclo comercial disponible</h2>
         <p className="mt-1 text-sm text-fg-muted">
-          Ya puede registrar contactos, compañías y productos, administrar monedas y tipos de
-          cambio, e importar o exportar en Excel y CSV. Prospectos, negociaciones, tareas y el
-          dashboard con indicadores llegan en las siguientes fases. Use la búsqueda de arriba
-          (Ctrl+K) para encontrar cualquier registro.
+          Registre prospectos, conviértalos en negociaciones y llévelas por el tablero hasta
+          ganarlas o perderlas, con productos en varias monedas y tipos de cambio trazables. Tareas,
+          proyectos y el dashboard con indicadores llegan en las siguientes fases. Use la búsqueda
+          de arriba (Ctrl+K) para encontrar cualquier registro.
         </p>
       </Card>
       {shortcuts.length > 0 && (
