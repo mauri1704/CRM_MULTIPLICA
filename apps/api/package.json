@@ -14,7 +14,8 @@
     "db:setup": "tsx --env-file-if-exists=.env scripts/db-setup.ts",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
-    "db:seed": "tsx --env-file-if-exists=.env prisma/seed.ts"
+    "db:seed": "tsx --env-file-if-exists=.env prisma/seed.ts",
+    "org:create": "tsx --env-file-if-exists=.env scripts/create-organization.ts"
   },
   "dependencies": {
     "@crm/shared": "workspace:*",

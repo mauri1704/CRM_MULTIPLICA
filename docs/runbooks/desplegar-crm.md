@@ -31,9 +31,21 @@ El proxy del servidor (Caddy) publica el dominio: `deploy/Caddyfile.snippet`.
 
 ### Alta inicial
 
-La base nace vacía. Crear la organización y su administrador desde el contenedor de la API con el
-seed de producción o con un script acordado por el equipo (el seed de desarrollo **no** debe correr en
-producción: crea usuarios de demostración con contraseñas conocidas).
+La base nace vacía. Crear la organización y su administrador con el script de alta (no crea datos
+de demostración; el seed de desarrollo se niega a correr con `NODE_ENV=production`):
+
+```bash
+docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml run --rm --no-deps \
+  -e ORG_NAME="Mi Empresa S.A.C." -e ADMIN_NAME="Ana Pérez" -e ADMIN_EMAIL=ana@empresa.com \
+  migrate pnpm org:create
+```
+
+- Sin `ADMIN_PASSWORD` genera una contraseña aleatoria y la muestra **una sola vez**; con ella,
+  debe cumplir la política (≥ 10 caracteres, letras y números).
+- Crea roles del sistema y permisos, pipelines, catálogos, prioridades, estados de tarea y reglas de
+  duplicados iniciales. Se niega si el correo o el nombre de la organización ya existen.
+- El administrador entra, cambia la contraseña (Perfil) y crea usuarios y equipos. Para otro cliente,
+  repetir el comando con otros datos.
 
 ## Actualizar a una versión nueva
 
