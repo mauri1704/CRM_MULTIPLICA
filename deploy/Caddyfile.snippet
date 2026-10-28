@@ -1,0 +1,15 @@
+# Bloque para el Caddy del servidor (lo aplica infraestructura; ver docs/runbooks/desplegar-crm.md).
+# Ajustar el dominio (decisión D-03 pendiente) y los puertos si cambiaron en deploy/.env.
+crm.ejemplo.com {
+	encode zstd gzip
+	handle /api/* {
+		reverse_proxy 127.0.0.1:3001
+	}
+	handle {
+		reverse_proxy 127.0.0.1:8081
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+}

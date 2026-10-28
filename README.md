@@ -18,7 +18,7 @@ motor de automatizaciones comerciales.
 | 3 — Prospectos, negociaciones, conversión                     | ✅ Entregada (ver abajo) |
 | 4 — Tareas, proyectos y actividades                           | ✅ Entregada (ver abajo) |
 | 5 — Duplicados, fusión, importación avanzada y papelera       | ✅ Entregada (ver abajo) |
-| 6 — Dashboard, reportes y despliegue                          | Siguiente                |
+| 6 — Dashboard, reportes y despliegue                          | ✅ Entregada (ver abajo) |
 
 ### Fase 1 — qué incluye
 
@@ -148,3 +148,26 @@ Ver [CLAUDE.md](CLAUDE.md#puesta-en-marcha-local). API documentada en `http://lo
 | [05 — Backlog y criterios](docs/plan/05-backlog-criterios.md) | Historias por fase y criterios de aceptación        |
 | [06 — Plan por fases](docs/plan/06-plan-fases.md)             | Fases, dependencias técnicas, entregables, pruebas  |
 | [07 — Decisiones](docs/plan/07-decisiones-pendientes.md)      | Decisiones aprobadas y preguntas abiertas           |
+
+### Fase 6 — qué incluye
+
+- **Dashboard** (Inicio): prospectos activos y nuevos, negociaciones abiertas / ganadas / perdidas,
+  valor del pipeline, ventas cerradas, tareas pendientes y vencidas, distribución por responsable,
+  evolución (semanal o mensual) y actividad reciente; filtros de fechas, pipeline, equipo,
+  responsable y moneda, sincronizados con la URL.
+- **13 reportes** con los mismos filtros y exportación a Excel/CSV (con totales y notas de moneda,
+  criterio y periodo), auditada. Todo respeta el alcance del rol (propios / equipo / todos).
+- **Multimoneda (D-14):** conversión con la tasa del día de corte o del día de cierre; los importes
+  sin tasa se excluyen y se informa; nunca se suman monedas distintas.
+- **Pruebas integrales:** reportes contra datos conocidos, aislamiento entre organizaciones,
+  concurrencia (mover la misma tarjeta, movimientos paralelos, cambio de estado simultáneo, triple
+  conversión → una sola negociación) y E2E en escritorio y móvil. 144 pruebas de integración.
+- **Despliegue:** `apps/api/Dockerfile`, `apps/web/Dockerfile`, `deploy/docker-compose.prod.yml`
+  (base sin puerto expuesto, migraciones previas al arranque, puertos solo en 127.0.0.1),
+  `deploy/Caddyfile.snippet`, workflow _Release_ (imágenes por tag `v*`), `GET /health/ready`.
+- **Respaldo:** `deploy/scripts/{backup,restore,restore-test}.sh`; restauración verificada.
+- **Documentación:** `docs/manual-usuario.md`, `docs/runbooks/` (desplegar, respaldo y restauración,
+  monitoreo) y `docs/openapi.json` (también en `/api/docs`).
+- **Pendiente de decisión (docs/plan/07):** D-03 dominio/servidor y D-18 responsable de respaldos.
+  El despliegue real en el servidor lo ejecuta infraestructura; las imágenes Docker no se pudieron
+  construir en el entorno de desarrollo (sin demonio Docker): el primer tag `v*` las validará en CI.

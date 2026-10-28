@@ -1,4 +1,12 @@
-import type { CandidateStatus, DuplicateEntity, PermissionMap, SystemRoleKey } from '@crm/shared';
+import type {
+  CandidateStatus,
+  ConversionCriterion,
+  DuplicateEntity,
+  PermissionMap,
+  ReportKey,
+  ReportMeta,
+  SystemRoleKey,
+} from '@crm/shared';
 
 /** Tipos de las respuestas de la API usados en la interfaz. */
 
@@ -567,4 +575,52 @@ export interface DuplicateHit {
   visible: boolean;
   rules: { name: string; action: 'WARN' | 'BLOCK' }[];
   blocking: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Fase 6
+// ---------------------------------------------------------------------------
+
+export interface DashboardData {
+  meta: ReportMeta;
+  kpis: {
+    activeLeads: number;
+    newLeads: number;
+    openDeals: number;
+    wonDeals: number;
+    lostDeals: number;
+    pipelineValue: number;
+    closedSales: number;
+    pendingTasks: number;
+    overdueTasks: number;
+  };
+  ownerDistribution: {
+    owner: string;
+    activeLeads: number;
+    openDeals: number;
+    pipelineValue: number;
+    won: number;
+    wonValue: number;
+  }[];
+  evolution: {
+    key: string;
+    label: string;
+    leadsCreated: number;
+    dealsWon: number;
+    dealsLost: number;
+    wonValue: number;
+  }[];
+  evolutionUnit: 'week' | 'month';
+  recentActivity: {
+    at: string;
+    who: string;
+    text: string;
+    link: { type: 'LEAD' | 'DEAL' | 'CONTACT' | 'COMPANY'; id: string } | null;
+  }[];
+}
+
+export interface ReportIndex {
+  reports: { key: ReportKey; title: string; description: string; group: string }[];
+  criteria: { value: ConversionCriterion; label: string }[];
+  canExport: boolean;
 }

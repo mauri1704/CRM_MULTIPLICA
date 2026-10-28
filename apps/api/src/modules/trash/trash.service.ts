@@ -93,6 +93,42 @@ export class TrashService {
     return { OR: [{ deletedById: { in: ids } }, { ownerId: { in: ids } }] };
   }
 
+  /** Movimiento de la papelera por módulo, dentro del alcance del usuario (para reportes). */
+  async stats(user: AuthUser, from: Date | null, to: Date | null) {
+    const scope = await this.scopeWhere(user, 'view');
+    const between = (field: 'deletedAt' | 'resolvedAt') =>
+      from || to ? { [field]: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {};
+    const count = async (extra: Prisma.TrashEntryWhereInput) =>
+      new Map(
+        (
+          await this.db.tx.trashEntry.groupBy({
+            by: ['entityType'],
+            where: { AND: [{ organizationId: user.organizationId }, scope, extra] },
+            _count: { _all: true },
+          })
+        ).map((r) => [r.entityType, r._count._all]),
+      );
+    const [deleted, restored, purged, inTrash] = await Promise.all([
+      count(between('deletedAt')),
+      count({ status: 'RESTORED', ...between('resolvedAt') }),
+      count({ status: 'PURGED', ...between('resolvedAt') }),
+      count({ status: 'IN_TRASH' }),
+    ]);
+    const types = new Set([
+      ...deleted.keys(),
+      ...restored.keys(),
+      ...purged.keys(),
+      ...inTrash.keys(),
+    ]);
+    return [...types].sort().map((entityType) => ({
+      entityType,
+      deleted: deleted.get(entityType) ?? 0,
+      restored: restored.get(entityType) ?? 0,
+      purged: purged.get(entityType) ?? 0,
+      inTrash: inTrash.get(entityType) ?? 0,
+    }));
+  }
+
   async list(user: AuthUser, q: TrashListQuery) {
     const where: Prisma.TrashEntryWhereInput = {
       AND: [

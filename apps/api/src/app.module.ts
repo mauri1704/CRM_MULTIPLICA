@@ -46,6 +46,9 @@ import { ActivitiesService } from './modules/activities/activities.service';
 import { DuplicatesController } from './modules/duplicates/duplicates.controller';
 import { DuplicatesService } from './modules/duplicates/duplicates.service';
 import { MergeService } from './modules/duplicates/merge.service';
+import { DashboardService } from './modules/reports/dashboard.service';
+import { ReportsController } from './modules/reports/reports.controller';
+import { ReportsContextService, ReportsService } from './modules/reports/reports.service';
 import { ProjectsController } from './modules/projects/projects.controller';
 import { TasksController } from './modules/tasks/tasks.controller';
 
@@ -110,6 +113,7 @@ export const loggerModule = LoggerModule.forRoot({
     TasksController,
     ActivitiesController,
     DuplicatesController,
+    ReportsController,
   ],
   providers: [
     AuthService,
@@ -124,6 +128,9 @@ export const loggerModule = LoggerModule.forRoot({
     ActivitiesService,
     DuplicatesService,
     MergeService,
+    ReportsContextService,
+    ReportsService,
+    DashboardService,
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: AuthGuard },

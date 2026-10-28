@@ -204,7 +204,7 @@ export class LeadsService implements OnModuleInit, TrashHandler {
     const items = await this.db.tx.lead.findMany({
       where,
       include: leadInclude,
-      orderBy: { stagePosition: 'asc' },
+      orderBy: [{ stagePosition: 'asc' }, { id: 'asc' }],
       take: 1000,
     });
     return {

@@ -56,6 +56,14 @@ La fusión (`merge.service.ts`) es la única que mueve relaciones entre registro
 tabla que apunta a contactos, compañías, productos, proyectos, prospectos o negociaciones, súmela a
 sus `relations()`. Los nombres para detectar duplicados van en columnas `name_norm` (sin puntos).
 
+## Reportes y dashboard
+
+Los reportes viven en `apps/api/src/modules/reports/` (`ReportsService.run` por clave de
+`REPORT_KEYS` en `@crm/shared`). Todo reporte calcula con `ReportsContextService.context()`
+(alcance ∩ equipo ∩ responsable) y convierte dinero solo con `MoneyConverter` (los importes sin tasa
+se excluyen y se informan, nunca se suman monedas). Un reporte nuevo: clave y `REPORT_INFO` en shared,
+método en `ReportsService`, permiso, y un caso en `reports.test.ts` contra datos conocidos.
+
 ## Importación y exportación
 
 Cada módulo de datos aporta una `ImportExportDefinition` en

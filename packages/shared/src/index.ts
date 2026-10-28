@@ -16,3 +16,4 @@ export * from './schemas/import';
 export * from './schemas/sales';
 export * from './schemas/work';
 export * from './schemas/duplicates';
+export * from './schemas/reports';

@@ -241,6 +241,44 @@ export class DuplicatesService {
     return { items: dtos, total: Number(count[0]?.n ?? 0), page: q.page, pageSize: q.pageSize };
   }
 
+  /** Resumen por módulo para reportes: coincidencias por estado (detectadas en el rango) y fusiones. */
+  async stats(user: AuthUser, from: Date | null, to: Date | null) {
+    const ids = await this.scopeIds(user);
+    const range = Prisma.sql`${from ? Prisma.sql`AND c.created_at >= ${from}` : Prisma.empty} ${to ? Prisma.sql`AND c.created_at <= ${to}` : Prisma.empty}`;
+    const out: {
+      entityType: DuplicateEntity;
+      OPEN: number;
+      KEPT_BOTH: number;
+      REVIEWED: number;
+      MERGED: number;
+      merges: number;
+    }[] = [];
+    for (const e of DUPLICATE_ENTITIES) {
+      if (!can(user.permissions, ENTITIES[e].module, 'view')) continue;
+      const row = { entityType: e, OPEN: 0, KEPT_BOTH: 0, REVIEWED: 0, MERGED: 0, merges: 0 };
+      for (const status of ['OPEN', 'KEPT_BOTH', 'REVIEWED', 'MERGED'] as const) {
+        const where = await this.visibleWhere(user, { status, entityType: e });
+        if (!where) continue;
+        const r = await this.db.tx.$queryRaw<{ n: bigint }[]>(
+          Prisma.sql`SELECT count(*) AS n FROM duplicate_candidates c WHERE ${where} ${range}`,
+        );
+        row[status] = Number(r[0]?.n ?? 0);
+      }
+      row.merges = await this.db.tx.mergeHistory.count({
+        where: {
+          organizationId: user.organizationId,
+          entityType: e,
+          ...(ids === null ? {} : { userId: { in: ids } }),
+          ...(from || to
+            ? { createdAt: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } }
+            : {}),
+        },
+      });
+      out.push(row);
+    }
+    return out;
+  }
+
   /** Cuántos hay por revisar, por módulo (para el menú y las pestañas). */
   async counts(user: AuthUser) {
     const out: Record<string, number> = {};

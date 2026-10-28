@@ -275,7 +275,7 @@ export class TasksService implements OnModuleInit, TrashHandler {
       this.db.tx.task.findMany({
         where: await this.where(user, f),
         include: taskInclude,
-        orderBy: { statusPosition: 'asc' },
+        orderBy: [{ statusPosition: 'asc' }, { id: 'asc' }],
         take: 1000,
       }),
       this.permits(user),

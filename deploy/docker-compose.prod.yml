@@ -1,0 +1,84 @@
+# CRM Multiplica — producción. Uso: ver docs/runbooks/desplegar-crm.md
+#   docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml up -d
+name: crm
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: crm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD}
+      POSTGRES_DB: crm
+    volumes:
+      - crm_pgdata:/var/lib/postgresql/data
+    # Sin puertos publicados: solo la red interna accede a la base.
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U crm -d crm']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [internal]
+
+  # Tarea única: crea el rol crm_app y aplica las migraciones pendientes, y termina.
+  migrate:
+    image: ${CRM_API_IMAGE:?defina CRM_API_IMAGE}
+    restart: 'no'
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgresql://crm:${POSTGRES_PASSWORD}@db:5432/crm
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?defina APP_DB_PASSWORD}
+    command: ['sh', '-c', 'pnpm db:setup && pnpm db:deploy']
+    networks: [internal]
+
+  api:
+    image: ${CRM_API_IMAGE}
+    restart: unless-stopped
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    environment: &api-env
+      NODE_ENV: production
+      DATABASE_URL: postgresql://crm:${POSTGRES_PASSWORD}@db:5432/crm
+      APP_DATABASE_URL: postgresql://crm_app:${APP_DB_PASSWORD}@db:5432/crm
+      API_PORT: 3001
+      WEB_URL: ${WEB_URL:?defina WEB_URL}
+      SMTP_URL: ${SMTP_URL:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      STORAGE_DIR: /data/storage
+      TRUST_PROXY: '1'
+      LOG_LEVEL: info
+    volumes:
+      - crm_storage:/data/storage
+    ports:
+      - '127.0.0.1:${API_PORT:-3001}:3001'
+    mem_limit: 768m
+    networks: [internal]
+
+  worker:
+    image: ${CRM_API_IMAGE}
+    restart: unless-stopped
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    environment: *api-env
+    volumes:
+      - crm_storage:/data/storage
+    command: ['node', 'dist/worker.js']
+    healthcheck:
+      disable: true
+    mem_limit: 512m
+    networks: [internal]
+
+  web:
+    image: ${CRM_WEB_IMAGE:?defina CRM_WEB_IMAGE}
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:${WEB_PORT:-8081}:80'
+    mem_limit: 128m
+    networks: [internal]
+
+volumes:
+  crm_pgdata:
+  crm_storage:
+
+networks:
+  internal:

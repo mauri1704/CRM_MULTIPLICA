@@ -1,6 +1,7 @@
 import type { PermissionAction, PermissionModule } from '@crm/shared';
 import {
   ArrowRightLeft,
+  BarChart3,
   Building,
   Building2,
   Contact,
@@ -19,7 +20,8 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { Link } from 'react-router';
-import { Card, PageHeader } from '@/components/ui/misc';
+import { Dashboard } from '@/features/analytics/dashboard';
+import { PageHeader } from '@/components/ui/misc';
 import { useAuth, useUser } from '@/lib/auth';
 
 interface Shortcut {
@@ -31,6 +33,13 @@ interface Shortcut {
 }
 
 const SHORTCUTS: Shortcut[] = [
+  {
+    to: '/reportes',
+    label: 'Reportes',
+    description: '13 reportes con filtros y exportación',
+    icon: BarChart3,
+    permission: ['reports', 'view'],
+  },
   {
     to: '/prospectos',
     label: 'Prospectos',
@@ -150,21 +159,12 @@ export function HomePage() {
   const { can } = useAuth();
   const shortcuts = SHORTCUTS.filter((s) => can(...s.permission));
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="mx-auto max-w-7xl">
       <PageHeader
         title={`Hola, ${user.name.split(' ')[0]}`}
         description={`${user.organization.name} · ${user.roleName}`}
       />
-      <Card className="mb-6 p-5">
-        <h2 className="font-semibold">Ciclo comercial disponible</h2>
-        <p className="mt-1 text-sm text-fg-muted">
-          Registre prospectos, conviértalos en negociaciones y llévelas por el tablero hasta
-          ganarlas o perderlas, con productos en varias monedas y tipos de cambio trazables.
-          Organice el trabajo con tareas (tablero, lista y calendario) y proyectos, y registre
-          llamadas y reuniones en cada ficha. El dashboard con indicadores llega en una fase
-          siguiente. Use la búsqueda de arriba (Ctrl+K) para encontrar cualquier registro.
-        </p>
-      </Card>
+      {can('dashboard', 'view') && <Dashboard />}
       {shortcuts.length > 0 && (
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {shortcuts.map((s) => (

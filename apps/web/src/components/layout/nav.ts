@@ -7,6 +7,7 @@ import {
   Contact,
   FileSpreadsheet,
   Package,
+  BarChart3,
   CopyCheck,
   GitBranch,
   FolderKanban,
@@ -84,6 +85,12 @@ export const NAV: NavSection[] = [
     title: 'Catálogo',
     items: [
       { to: '/productos', label: 'Productos', icon: Package, permission: ['products', 'view'] },
+    ],
+  },
+  {
+    title: 'Análisis',
+    items: [
+      { to: '/reportes', label: 'Reportes', icon: BarChart3, permission: ['reports', 'view'] },
     ],
   },
   {

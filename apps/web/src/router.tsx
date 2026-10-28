@@ -17,6 +17,7 @@ import { NotFoundPage } from '@/features/home/not-found-page';
 import { TrashPage } from '@/features/trash/trash-page';
 import { CompaniesPage } from '@/features/companies/companies-page';
 import { ContactsPage } from '@/features/contacts/contacts-page';
+import { ReportPage, ReportsIndexPage } from '@/features/analytics/reports-page';
 import { DealsPage } from '@/features/deals/deals-page';
 import { DuplicateComparePage } from '@/features/duplicates/duplicate-compare-page';
 import { DuplicateRulesPage } from '@/features/duplicates/duplicate-rules-page';
@@ -94,6 +95,22 @@ export const router = createBrowserRouter([
         element: (
           <RequirePermission module="products" action="view">
             <ProductsPage />
+          </RequirePermission>
+        ),
+      },
+      {
+        path: 'reportes',
+        element: (
+          <RequirePermission module="reports" action="view">
+            <ReportsIndexPage />
+          </RequirePermission>
+        ),
+      },
+      {
+        path: 'reportes/:key',
+        element: (
+          <RequirePermission module="reports" action="view">
+            <ReportPage />
           </RequirePermission>
         ),
       },
