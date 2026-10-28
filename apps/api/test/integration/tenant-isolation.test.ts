@@ -131,6 +131,38 @@ describe('aislamiento entre organizaciones (API)', () => {
     expect((await adminA.get('/tasks?rel=all')).body.items).toEqual([]);
   });
 
+  it('A no ve ni fusiona los duplicados de B, y sus reglas son independientes', async () => {
+    const adminB = await login(app, b.adminEmail);
+    const x = (await adminB.post('/contacts', { firstName: 'Duplicado B', email: 'dup@b.pe' }))
+      .body;
+    await adminB.post('/contacts', { firstName: 'Duplicado B2', email: 'dup@b.pe' });
+    const cand = (await adminB.get('/duplicates/candidates?status=OPEN&entityType=CONTACT')).body
+      .items[0];
+    expect(cand).toBeTruthy();
+    expect(
+      (await adminA.get('/duplicates/candidates?status=OPEN&entityType=CONTACT')).body.items,
+    ).toEqual([]);
+    expect((await adminA.get(`/duplicates/candidates/${cand.id}`)).status).toBe(404);
+    expect((await adminA.post(`/duplicates/candidates/${cand.id}/reviewed`)).status).toBe(404);
+    expect(
+      (await adminA.post('/duplicates/merge', { candidateId: cand.id, survivorId: x.id })).status,
+    ).toBe(404);
+    const rulesA = (await adminA.get('/duplicates/rules')).body as { id: string }[];
+    const rulesB = (await adminB.get('/duplicates/rules')).body as { id: string }[];
+    expect(rulesA.length).toBe(rulesB.length);
+    expect(rulesA.some((r) => rulesB.some((q) => q.id === r.id))).toBe(false);
+    expect(
+      (await adminA.patch(`/duplicates/rules/${rulesB[0]!.id}`, { active: false })).status,
+    ).toBe(404);
+    expect((await adminA.delete(`/duplicates/rules/${rulesB[0]!.id}`)).status).toBe(404);
+    // El aviso al guardar de A no encuentra registros de B.
+    const check = await adminA.post('/duplicates/check', {
+      entityType: 'CONTACT',
+      values: { email: 'dup@b.pe' },
+    });
+    expect(check.body).toEqual([]);
+  });
+
   it('A no puede asignar a su equipo un usuario de B ni dar a un usuario un rol de B', async () => {
     expect(
       (await adminA.post('/teams', { name: 'Mixto', memberIds: [b.adminUserId] })).status,
@@ -184,6 +216,9 @@ describe('Row-Level Security (segunda barrera, en la base de datos)', () => {
     'tasks',
     'task_members',
     'activities',
+    'duplicate_rules',
+    'duplicate_candidates',
+    'merge_history',
   ];
 
   it('todas las tablas de organización tienen RLS activo', async () => {

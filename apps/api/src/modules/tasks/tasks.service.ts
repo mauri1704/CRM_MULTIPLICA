@@ -741,6 +741,21 @@ export class TasksService implements OnModuleInit, TrashHandler {
     );
   }
 
+  /** Recalcula el texto de búsqueda (el código del elemento asociado cambió por una fusión). */
+  async reindex(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const rows = await this.db.tx.task.findMany({
+      where: { organizationId: this.db.organizationId, id: { in: ids } },
+      include: taskInclude,
+    });
+    for (const t of rows) {
+      await this.db.tx.task.updateMany({
+        where: { id: t.id, organizationId: this.db.organizationId },
+        data: { searchNorm: this.search(t, crmOf(t)?.code) },
+      });
+    }
+  }
+
   /** Al convertir un prospecto, sus tareas abiertas pasan a la negociación (regla 04 §4). */
   async moveOpenFromLeadToDeal(
     user: AuthUser,

@@ -17,8 +17,8 @@ motor de automatizaciones comerciales.
 | 2 — Contactos, compañías, productos, monedas, tipos de cambio | ✅ Entregada (ver abajo) |
 | 3 — Prospectos, negociaciones, conversión                     | ✅ Entregada (ver abajo) |
 | 4 — Tareas, proyectos y actividades                           | ✅ Entregada (ver abajo) |
-| 5 — Duplicados y papelera completa                            | Siguiente                |
-| 6 — Dashboard, reportes y despliegue                          | Pendiente                |
+| 5 — Duplicados, fusión, importación avanzada y papelera       | ✅ Entregada (ver abajo) |
+| 6 — Dashboard, reportes y despliegue                          | Siguiente                |
 
 ### Fase 1 — qué incluye
 
@@ -105,6 +105,33 @@ motor de automatizaciones comerciales.
   (código único de contactos y compañías, búsqueda y campos personalizados). La migración de la
   fase 4 los recrea y ahora están declarados en `schema.prisma`; una prueba verifica que existan.
 - **Calidad:** 106 pruebas de integración y 17 E2E.
+
+### Fase 5 — qué incluye
+
+- **Reglas de duplicados** por módulo (contactos, compañías, productos, prospectos, negociaciones y
+  proyectos): campos base o personalizados, combinados con «y», coincidencia **exacta**,
+  **normalizada** (sin tildes, mayúsculas ni signos; «S.A.C.» = «SAC») o **aproximada** (pg_trgm,
+  umbral configurable, 85 % por defecto), activables y con acción «avisar» o «impedir guardar».
+  Vienen reglas iniciales; las administra quien tenga el permiso de gestión.
+- **Detección:** bajo demanda («Buscar duplicados»), al guardar (aviso con enlace al posible
+  duplicado; la persona decide) y al importar. Nunca elimina ni fusiona solo. El aviso no revela
+  registros fuera del alcance de quien guarda. Un par marcado «revisado» o «conservar ambos» no
+  vuelve a aparecer.
+- **Comparación y fusión segura:** lado a lado con las diferencias resaltadas; se elige el registro
+  principal y, campo por campo, qué valor conservar (o combinar textos largos); vista previa de las
+  relaciones que se mueven. Todo en una transacción: valores elegidos, relaciones (contactos,
+  compañías, productos, tareas, comentarios, actividades…), el absorbido va a la papelera marcado
+  «fusionado», `merge_history` con instantánea completa, historial y auditoría. Dos fusiones
+  simultáneas del mismo registro no se pisan: una gana y la otra recibe un conflicto.
+- **Restricciones:** no se fusionan negociaciones cerradas ni de distinta moneda, ni prospectos
+  convertidos o de distinta moneda. Supervisor y Administrador; con alcance de equipo, solo
+  registros de su equipo.
+- **Importación avanzada:** modo «Crear de todos modos» (queda por revisar como posible duplicado),
+  «Todo o nada» (si una fila falla no se guarda ninguna) y aviso de coincidencias nuevas al terminar.
+- **Papelera:** los registros fusionados se identifican y se avisa que restaurarlos no deshace la
+  fusión.
+- **Calidad:** 125 pruebas de integración (incluye concurrencia de fusión y aislamiento entre
+  organizaciones) y 20 E2E.
 
 ## Puesta en marcha
 

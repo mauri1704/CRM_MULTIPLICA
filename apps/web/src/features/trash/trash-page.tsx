@@ -1,7 +1,7 @@
 import { ENTITY_LABELS, TRASHABLE_ENTITIES, type EntityType } from '@crm/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
-import { AlertTriangle, RotateCcw, Trash2 } from 'lucide-react';
+import { AlertTriangle, GitMerge, RotateCcw, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -100,6 +100,11 @@ export function TrashPage() {
         <div>
           <p className="font-medium">{row.original.displayName}</p>
           {row.original.code && <p className="text-xs text-fg-muted">{row.original.code}</p>}
+          {row.original.relations.fusionado === true && (
+            <Badge tone="primary" icon={GitMerge}>
+              Fusionado en {String(row.original.relations.fusionadoEn ?? 'otro registro')}
+            </Badge>
+          )}
         </div>
       ),
     },
@@ -295,13 +300,27 @@ function TrashDetailDrawer({
                 <dd>{formatDate(data.purgeAfter)}</dd>
               </>
             )}
-            {Object.entries(data.relations).map(([k, v]) => (
-              <div key={k} className="contents">
-                <dt className="text-fg-muted">Relacionados ({k === 'members' ? 'miembros' : k})</dt>
-                <dd>{String(v)}</dd>
-              </div>
-            ))}
+            {Object.entries(data.relations)
+              .filter(([k]) => k !== 'fusionado' && k !== 'fusionadoEn')
+              .map(([k, v]) => (
+                <div key={k} className="contents">
+                  <dt className="text-fg-muted">
+                    Relacionados ({k === 'members' ? 'miembros' : k})
+                  </dt>
+                  <dd>{String(v)}</dd>
+                </div>
+              ))}
           </dl>
+          {data.relations.fusionado === true && (
+            <p className="flex items-start gap-2 rounded-md bg-muted p-3 text-sm">
+              <GitMerge className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+              <span>
+                Este registro se fusionó en <strong>{String(data.relations.fusionadoEn)}</strong>:
+                sus relaciones ya pasaron a ese registro. Restaurarlo creará un duplicado y no
+                deshace la fusión.
+              </span>
+            </p>
+          )}
           {data.restoreConflicts.length > 0 && (
             <FormMessage
               error={`No se puede restaurar todavía: ${data.restoreConflicts.join(' ')}`}

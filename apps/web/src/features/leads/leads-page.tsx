@@ -21,6 +21,7 @@ import { Card, EmptyState, PageHeader, Spinner } from '@/components/ui/misc';
 import { TabPanel, Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { DataActions } from '@/features/import-export/data-actions';
+import { useDuplicateGuard } from '@/features/duplicates/duplicate-guard';
 import { ActivitiesPanel } from '@/features/activities/activities-panel';
 import { RelatedTasks } from '@/features/tasks/related-tasks';
 import { CommentsPanel } from '@/features/sales/comments-panel';
@@ -428,6 +429,7 @@ function LeadForm({
     ? !converted && can('leads', 'edit', lead.ownerId === me.id ? 'OWN' : 'TEAM')
     : true;
 
+  const guard = useDuplicateGuard('LEAD');
   const form = useForm<FormIn, unknown, FormOut>({
     resolver: zodResolver(leadInput),
     defaultValues: {
@@ -453,6 +455,7 @@ function LeadForm({
       companyId: company?.id ?? null,
       customFields: cleanCustom(values.customFields as Record<string, unknown>),
     };
+    if (!lead && !(await guard.confirm(body))) return;
     try {
       if (lead) await api.patch(`/leads/${lead.id}`, { ...body, version: lead.version });
       else await api.post('/leads', { ...body, pipelineId });
@@ -696,6 +699,7 @@ function LeadForm({
           la papelera.
         </ConfirmDialog>
       )}
+      {guard.dialog}
     </Drawer>
   );
 }

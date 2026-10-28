@@ -2,6 +2,7 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import {
   can,
+  normalizeName,
   normalizeText,
   type DealInput,
   type DealUpdate,
@@ -17,6 +18,7 @@ import { assertVersion, customValues } from '../access/versioning';
 import { AuditService } from '../audit/audit.service';
 import { CurrenciesService } from '../currencies/currencies.service';
 import { CustomFieldsService } from '../custom-fields/custom-fields.service';
+import { DuplicateDetectionService } from '../duplicates/duplicate-detection.service';
 import { HistoryService, diff } from '../history/history.service';
 import { SequenceService } from '../sequences/sequence.service';
 import { positionAt } from '../sales/board';
@@ -151,6 +153,7 @@ export class DealsService implements OnModuleInit, TrashHandler {
     private readonly currencies: CurrenciesService,
     private readonly stages: StagesService,
     private readonly lines: LineItemsService,
+    private readonly duplicates: DuplicateDetectionService,
   ) {}
 
   onModuleInit(): void {
@@ -324,6 +327,21 @@ export class DealsService implements OnModuleInit, TrashHandler {
     return normalizeText([code, title, c?.legalName].filter(Boolean).join(' '));
   }
 
+  /** Recalcula el texto de búsqueda (p. ej. tras mover una compañía por una fusión). */
+  async reindex(ids: string[]): Promise<void> {
+    for (const id of ids) {
+      const d = await this.db.tx.deal.findFirst({
+        where: { id, organizationId: this.db.organizationId },
+        select: { code: true, title: true, companyId: true },
+      });
+      if (!d) continue;
+      await this.db.tx.deal.updateMany({
+        where: { id, organizationId: this.db.organizationId },
+        data: { searchNorm: await this.searchNorm(d.code, d.title, d.companyId) },
+      });
+    }
+  }
+
   async create(user: AuthUser, input: DealInput) {
     await this.check(input);
     const ownerId = await this.scope.resolveOwner(user, 'deals', 'create', input.ownerId);
@@ -338,6 +356,7 @@ export class DealsService implements OnModuleInit, TrashHandler {
       where: { organizationId: user.organizationId, stageId: stage.id, deletedAt: null },
       _min: { stagePosition: true },
     });
+    await this.duplicates.assertNoBlocking('DEAL', { ...input, customFields: custom });
     const deal = await this.db.tx.deal.create({
       data: {
         organizationId: user.organizationId,
@@ -355,6 +374,7 @@ export class DealsService implements OnModuleInit, TrashHandler {
         expectedCloseDate: toDate(input.expectedCloseDate) ?? null,
         notes: input.notes ?? null,
         customFields: custom as Prisma.InputJsonValue,
+        nameNorm: normalizeName(input.title),
         searchNorm: await this.searchNorm(code, input.title, input.companyId),
         createdById: user.id,
         updatedById: user.id,
@@ -367,6 +387,7 @@ export class DealsService implements OnModuleInit, TrashHandler {
       stage: stage.name,
       ownerId,
     });
+    await this.duplicates.onSaved('DEAL', deal.id);
     return this.get(user, deal.id);
   }
 
@@ -387,6 +408,15 @@ export class DealsService implements OnModuleInit, TrashHandler {
     if (before.status !== 'OPEN' && (currencyChanged || fields.estimatedValue !== undefined))
       this.assertOpen(before);
     await this.check({ ...fields, contactIds, primaryContactId });
+    await this.duplicates.assertNoBlocking(
+      'DEAL',
+      {
+        title: fields.title ?? before.title,
+        companyId: fields.companyId !== undefined ? fields.companyId : before.companyId,
+        customFields: customFields ?? customValues(before.customFields),
+      },
+      id,
+    );
     if (fields.ownerId !== undefined && fields.ownerId !== before.ownerId) {
       fields.ownerId = await this.scope.resolveOwner(user, 'deals', 'edit', fields.ownerId);
     }
@@ -437,6 +467,7 @@ export class DealsService implements OnModuleInit, TrashHandler {
               : null,
         expectedCloseDate: toDate(fields.expectedCloseDate),
         ...(custom !== undefined ? { customFields: custom as Prisma.InputJsonValue } : {}),
+        nameNorm: normalizeName(fields.title ?? before.title),
         searchNorm: await this.searchNorm(
           before.code,
           fields.title ?? before.title,
@@ -450,6 +481,7 @@ export class DealsService implements OnModuleInit, TrashHandler {
     if (currencyChanged)
       await this.lines.reprice(user, { kind: 'DEAL', id, currencyCode: fields.currencyCode! });
     await this.history.record('DEAL', id, 'UPDATE', user.id, changes);
+    await this.duplicates.onSaved('DEAL', id);
     return this.get(user, id);
   }
 

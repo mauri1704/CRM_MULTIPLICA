@@ -4,6 +4,7 @@ import {
   normalizeEmail,
   normalizeIdentifier,
   normalizePhone,
+  normalizeName,
   normalizeText,
   type ContactInput,
   type ContactUpdate,
@@ -12,6 +13,7 @@ import type { Actor, AuthUser } from '../../common/auth.types';
 import { notFound, validationError } from '../../common/errors';
 import { Db } from '../../infra/db';
 import { CustomFieldsService } from '../custom-fields/custom-fields.service';
+import { DuplicateDetectionService } from '../duplicates/duplicate-detection.service';
 import { HistoryService, diff } from '../history/history.service';
 import { SequenceService } from '../sequences/sequence.service';
 import { TrashService } from '../trash/trash.service';
@@ -102,6 +104,7 @@ export class ContactsService implements OnModuleInit, TrashHandler {
     private readonly sequences: SequenceService,
     private readonly scope: RecordScopeService,
     private readonly customFields: CustomFieldsService,
+    private readonly duplicates: DuplicateDetectionService,
   ) {}
 
   onModuleInit(): void {
@@ -213,6 +216,7 @@ export class ContactsService implements OnModuleInit, TrashHandler {
       emailNorm: normalizeEmail(c.email),
       phoneNorm: normalizePhone(c.phone),
       documentNorm: normalizeIdentifier(c.documentNumber),
+      nameNorm: normalizeName([c.firstName, c.lastName].filter(Boolean).join(' ')),
       searchNorm: normalizeText(
         [c.code, c.firstName, c.lastName, c.email, c.documentNumber, normalizePhone(c.phone)]
           .filter(Boolean)
@@ -243,6 +247,7 @@ export class ContactsService implements OnModuleInit, TrashHandler {
     const custom = await this.customFields.validate('CONTACT', input.customFields);
     const code = await this.sequences.next('CONTACT');
     const { customFields: _cf, ownerId: _o, relatedCompanyIds, ...fields } = input;
+    await this.duplicates.assertNoBlocking('CONTACT', { ...fields, customFields: custom });
     const c = await this.db.tx.contact.create({
       data: {
         ...fields,
@@ -262,6 +267,7 @@ export class ContactsService implements OnModuleInit, TrashHandler {
       companyId: c.companyId,
       ownerId,
     });
+    await this.duplicates.onSaved('CONTACT', c.id);
     return contactDto(await this.findAlive(c.id));
   }
 
@@ -293,6 +299,11 @@ export class ContactsService implements OnModuleInit, TrashHandler {
         changes.relatedCompanyIds = { from: prev, to: next };
     }
     if (Object.keys(changes).length === 0) return contactDto(before);
+    await this.duplicates.assertNoBlocking(
+      'CONTACT',
+      { ...before, ...fields, customFields: custom ?? customValues(before.customFields) },
+      id,
+    );
     const res = await this.db.tx.contact.updateMany({
       where: {
         id,
@@ -317,6 +328,7 @@ export class ContactsService implements OnModuleInit, TrashHandler {
       );
     }
     await this.history.record('CONTACT', id, 'UPDATE', user.id, changes);
+    await this.duplicates.onSaved('CONTACT', id);
     return contactDto(await this.findAlive(id));
   }
 

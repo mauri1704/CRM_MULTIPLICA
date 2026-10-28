@@ -4,6 +4,7 @@ import {
   Building,
   Building2,
   Contact,
+  CopyCheck,
   GitBranch,
   FolderKanban,
   ListTodo,
@@ -57,6 +58,13 @@ const SHORTCUTS: Shortcut[] = [
     description: 'Tareas agrupadas por objetivo',
     icon: FolderKanban,
     permission: ['projects', 'view'],
+  },
+  {
+    to: '/duplicados',
+    label: 'Duplicados',
+    description: 'Comparar y fusionar registros repetidos',
+    icon: CopyCheck,
+    permission: ['duplicates', 'view'],
   },
   {
     to: '/contactos',

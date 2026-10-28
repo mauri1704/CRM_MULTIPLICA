@@ -43,6 +43,9 @@ import { DealsController } from './modules/deals/deals.controller';
 import { LeadsController } from './modules/leads/leads.controller';
 import { ActivitiesController } from './modules/activities/activities.controller';
 import { ActivitiesService } from './modules/activities/activities.service';
+import { DuplicatesController } from './modules/duplicates/duplicates.controller';
+import { DuplicatesService } from './modules/duplicates/duplicates.service';
+import { MergeService } from './modules/duplicates/merge.service';
 import { ProjectsController } from './modules/projects/projects.controller';
 import { TasksController } from './modules/tasks/tasks.controller';
 
@@ -106,6 +109,7 @@ export const loggerModule = LoggerModule.forRoot({
     ProjectsController,
     TasksController,
     ActivitiesController,
+    DuplicatesController,
   ],
   providers: [
     AuthService,
@@ -118,6 +122,8 @@ export const loggerModule = LoggerModule.forRoot({
     ImportExportRegistry,
     CommentsService,
     ActivitiesService,
+    DuplicatesService,
+    MergeService,
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: AuthGuard },

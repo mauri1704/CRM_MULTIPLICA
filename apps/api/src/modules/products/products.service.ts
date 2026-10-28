@@ -11,6 +11,7 @@ import { conflict, notFound, validationError } from '../../common/errors';
 import { Db } from '../../infra/db';
 import { CurrenciesService } from '../currencies/currencies.service';
 import { CustomFieldsService } from '../custom-fields/custom-fields.service';
+import { DuplicateDetectionService } from '../duplicates/duplicate-detection.service';
 import { HistoryService, diff } from '../history/history.service';
 import { TrashService } from '../trash/trash.service';
 import type { TrashHandler } from '../trash/trash.types';
@@ -73,6 +74,7 @@ export class ProductsService implements OnModuleInit, TrashHandler {
     private readonly trash: TrashService,
     private readonly currencies: CurrenciesService,
     private readonly customFields: CustomFieldsService,
+    private readonly duplicates: DuplicateDetectionService,
   ) {}
 
   onModuleInit(): void {
@@ -164,6 +166,7 @@ export class ProductsService implements OnModuleInit, TrashHandler {
   async create(input: ProductInput, actor: Actor) {
     await this.check(input);
     const custom = await this.customFields.validate('PRODUCT', input.customFields);
+    await this.duplicates.assertNoBlocking('PRODUCT', { ...input, customFields: custom });
     const p = await this.db.tx.product.create({
       data: {
         organizationId: actor.organizationId,
@@ -187,6 +190,7 @@ export class ProductsService implements OnModuleInit, TrashHandler {
       price: input.price,
       currencyCode: p.currencyCode,
     });
+    await this.duplicates.onSaved('PRODUCT', p.id);
     return this.get(p.id);
   }
 
@@ -221,6 +225,11 @@ export class ProductsService implements OnModuleInit, TrashHandler {
       FIELDS,
     );
     if (Object.keys(changes).length === 0) return this.get(id);
+    await this.duplicates.assertNoBlocking(
+      'PRODUCT',
+      { ...before, ...fields, customFields: custom ?? customValues(before.customFields) },
+      id,
+    );
     const res = await this.db.tx.product.updateMany({
       where: {
         id,
@@ -232,6 +241,7 @@ export class ProductsService implements OnModuleInit, TrashHandler {
     });
     assertVersion(res.count);
     await this.history.record('PRODUCT', id, 'UPDATE', actor.userId, changes);
+    await this.duplicates.onSaved('PRODUCT', id);
     return this.get(id);
   }
 

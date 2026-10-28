@@ -3,11 +3,12 @@ import { IMPORT_ENTITY_LABELS, MAX_IMPORT_ROWS } from '@crm/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, Upload } from 'lucide-react';
 import { useState } from 'react';
+import { Link } from 'react-router';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Field } from '@/components/ui/field';
 import { FormMessage } from '@/components/ui/form-message';
-import { Select } from '@/components/ui/input';
+import { Checkbox, Select } from '@/components/ui/input';
 import { Badge } from '@/components/ui/misc';
 import { useToast } from '@/components/ui/toast';
 import { api, errorMessage } from '@/lib/api';
@@ -49,6 +50,7 @@ export function ImportWizard({
   const [upload, setUpload] = useState<UploadResult | null>(null);
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [mode, setMode] = useState<DuplicateMode>('SKIP');
+  const [atomic, setAtomic] = useState(false);
   const [summary, setSummary] = useState<ImportSummary | null>(null);
   const [result, setResult] = useState<Result | null>(null);
   const [busy, setBusy] = useState(false);
@@ -62,6 +64,7 @@ export function ImportWizard({
     setResult(null);
     setError(null);
     setMode('SKIP');
+    setAtomic(false);
   };
   const close = (o: boolean) => {
     if (!o) reset();
@@ -94,6 +97,7 @@ export function ImportWizard({
         await api.post<ImportSummary>(`/import-export/jobs/${upload.jobId}/analyze`, {
           mapping,
           duplicateMode: mode,
+          atomic,
         }),
       );
       setStep(2);
@@ -104,11 +108,16 @@ export function ImportWizard({
       const res = await api.post<Result>(`/import-export/jobs/${upload.jobId}/confirm`, {
         mapping,
         duplicateMode: mode,
+        atomic,
       });
       setResult(res);
       setStep(3);
       await qc.invalidateQueries();
-      toast.success(`Importación terminada: ${res.created} creados, ${res.updated} actualizados.`);
+      if (res.aborted) toast.error('No se importó nada: hay filas con errores.');
+      else
+        toast.success(
+          `Importación terminada: ${res.created} creados, ${res.updated} actualizados.`,
+        );
     });
   const errorsReport = () =>
     upload &&
@@ -280,8 +289,17 @@ export function ImportWizard({
             <Select value={mode} onChange={(e) => setMode(e.target.value as DuplicateMode)}>
               <option value="SKIP">Omitirlo (no cambiar el existente)</option>
               {canUpdate && <option value="UPDATE">Actualizarlo con los datos del archivo</option>}
+              <option value="CREATE">
+                Crear otro de todos modos (quedará por revisar como posible duplicado)
+              </option>
             </Select>
           </Field>
+          <label className="flex items-start gap-2 text-sm">
+            <Checkbox checked={atomic} onChange={(e) => setAtomic(e.target.checked)} />
+            <span>
+              <strong>Todo o nada.</strong> Si alguna fila tiene errores, no se guarda ninguna.
+            </span>
+          </label>
         </div>
       )}
 
@@ -291,8 +309,20 @@ export function ImportWizard({
             <Stat label="Filas" value={summary.total} />
             <Stat label="Se crearán" value={summary.toCreate} tone="success" />
             <Stat
-              label={mode === 'UPDATE' ? 'Se actualizarán' : 'Duplicados omitidos'}
-              value={mode === 'UPDATE' ? summary.toUpdate : summary.toSkip}
+              label={
+                mode === 'UPDATE'
+                  ? 'Se actualizarán'
+                  : mode === 'CREATE'
+                    ? 'Coinciden con existentes'
+                    : 'Duplicados omitidos'
+              }
+              value={
+                mode === 'UPDATE'
+                  ? summary.toUpdate
+                  : mode === 'CREATE'
+                    ? summary.duplicates
+                    : summary.toSkip
+              }
             />
             <Stat
               label="Con errores"
@@ -306,8 +336,9 @@ export function ImportWizard({
           {summary.invalid > 0 && (
             <p className="flex items-start gap-2 text-fg-muted">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden />
-              Las filas con errores no se importarán. Puede corregir el archivo y volver a subirlo,
-              o importar ahora solo las válidas.
+              {atomic
+                ? 'Con «Todo o nada» no se guardará ninguna fila mientras haya errores. Corrija el archivo y vuelva a subirlo.'
+                : 'Las filas con errores no se importarán. Puede corregir el archivo y volver a subirlo, o importar ahora solo las válidas.'}
             </p>
           )}
         </div>
@@ -315,10 +346,17 @@ export function ImportWizard({
 
       {step === 3 && result && (
         <div className="space-y-4 text-sm">
-          <p className="flex items-center gap-2 font-medium">
-            <CheckCircle2 className="h-5 w-5 text-success" aria-hidden />
-            Importación terminada
-          </p>
+          {result.aborted ? (
+            <p className="flex items-center gap-2 font-medium">
+              <AlertTriangle className="h-5 w-5 text-danger" aria-hidden />
+              No se importó nada: hay filas con errores (modo «Todo o nada»)
+            </p>
+          ) : (
+            <p className="flex items-center gap-2 font-medium">
+              <CheckCircle2 className="h-5 w-5 text-success" aria-hidden />
+              Importación terminada
+            </p>
+          )}
           <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Stat label="Creados" value={result.created} tone="success" />
             <Stat label="Actualizados" value={result.updated} />
@@ -329,6 +367,21 @@ export function ImportWizard({
               tone={result.invalid > 0 ? 'danger' : undefined}
             />
           </dl>
+          {(result.possibleDuplicates ?? 0) > 0 && (
+            <p className="flex items-start gap-2 rounded-md bg-muted p-3">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden />
+              <span>
+                Se detectaron {result.possibleDuplicates} coincidencia(s) con registros existentes.{' '}
+                <Link
+                  to="/duplicados"
+                  className="font-medium underline"
+                  onClick={() => close(false)}
+                >
+                  Revisar duplicados
+                </Link>
+              </span>
+            </p>
+          )}
           {result.errors.length > 0 && (
             <ErrorTable errors={result.errors} fieldLabel={(k) => k} onDownload={errorsReport} />
           )}

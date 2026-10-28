@@ -24,6 +24,7 @@ import { ActivitiesPanel } from '@/features/activities/activities-panel';
 import { RelatedTasks } from '@/features/tasks/related-tasks';
 import { CommentsPanel } from '@/features/sales/comments-panel';
 import { DataActions } from '@/features/import-export/data-actions';
+import { useDuplicateGuard } from '@/features/duplicates/duplicate-guard';
 import { ApiError, api } from '@/lib/api';
 import { useAuth, useUser } from '@/lib/auth';
 import { formatDate } from '@/lib/format';
@@ -257,6 +258,7 @@ function CompanyForm({ company, onClose }: { company: CompanyDetail | null; onCl
     : true;
   const rucId = docTypes.data?.find((d) => d.code === 'RUC')?.id ?? '';
 
+  const guard = useDuplicateGuard('COMPANY');
   const form = useForm<FormIn, unknown, FormOut>({
     resolver: zodResolver(companyInput),
     defaultValues: {
@@ -284,6 +286,7 @@ function CompanyForm({ company, onClose }: { company: CompanyDetail | null; onCl
       ...values,
       customFields: cleanCustom(values.customFields as Record<string, unknown>),
     };
+    if (!company && !(await guard.confirm(body))) return;
     try {
       if (company)
         await api.patch(`/companies/${company.id}`, { ...body, version: company.version });
@@ -482,6 +485,7 @@ function CompanyForm({ company, onClose }: { company: CompanyDetail | null; onCl
       ) : (
         formBody
       )}
+      {guard.dialog}
     </Drawer>
   );
 }

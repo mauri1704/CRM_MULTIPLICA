@@ -21,6 +21,7 @@ import { Card, EmptyState, PageHeader, Spinner } from '@/components/ui/misc';
 import { TabPanel, Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { DataActions } from '@/features/import-export/data-actions';
+import { useDuplicateGuard } from '@/features/duplicates/duplicate-guard';
 import { ActivitiesPanel } from '@/features/activities/activities-panel';
 import { RelatedTasks } from '@/features/tasks/related-tasks';
 import { CommentsPanel } from '@/features/sales/comments-panel';
@@ -441,6 +442,7 @@ function DealForm({
   const firstOpen = stages.find((s) => s.kind === 'OPEN');
   const hasLines = (deal?.products?.length ?? 0) > 0;
 
+  const guard = useDuplicateGuard('DEAL');
   const form = useForm<FormIn, unknown, FormOut>({
     resolver: zodResolver(dealInput),
     defaultValues: {
@@ -474,6 +476,7 @@ function DealForm({
       primaryContactId: contacts.find((c) => c.primary)?.id ?? null,
       customFields: cleanCustom(values.customFields as Record<string, unknown>),
     };
+    if (!deal && !(await guard.confirm(body))) return;
     try {
       if (deal) await api.patch(`/deals/${deal.id}`, { ...body, version: deal.version });
       else await api.post('/deals', { ...body, pipelineId });
@@ -834,6 +837,7 @@ function DealForm({
         </>
       )}
       {dialog}
+      {guard.dialog}
     </Drawer>
   );
 }

@@ -587,6 +587,8 @@ model Company {
   customFields   Json      @default("{}") @map("custom_fields")
   /// Texto normalizado para búsqueda (razón social, nombre comercial, RUC, código)
   searchNorm     String    @default("") @map("search_norm")
+  /// Nombre normalizado (para duplicados aproximados).
+  nameNorm       String    @default("") @map("name_norm")
   version        Int       @default(0)
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
@@ -613,6 +615,7 @@ model Company {
   @@index([organizationId, ownerId])
   @@index([searchNorm(ops: raw("gin_trgm_ops"))], type: Gin, map: "companies_search_trgm")
   @@index([customFields(ops: JsonbOps)], type: Gin, map: "companies_custom_fields_idx")
+  @@index([nameNorm(ops: raw("gin_trgm_ops"))], type: Gin, map: "companies_name_trgm")
   @@map("companies")
 }
 
@@ -635,6 +638,8 @@ model Contact {
   notes          String?
   customFields   Json      @default("{}") @map("custom_fields")
   searchNorm     String    @default("") @map("search_norm")
+  /// Nombre normalizado (para duplicados aproximados).
+  nameNorm       String    @default("") @map("name_norm")
   version        Int       @default(0)
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
@@ -661,6 +666,7 @@ model Contact {
   @@index([organizationId, companyId])
   @@index([searchNorm(ops: raw("gin_trgm_ops"))], type: Gin, map: "contacts_search_trgm")
   @@index([customFields(ops: JsonbOps)], type: Gin, map: "contacts_custom_fields_idx")
+  @@index([nameNorm(ops: raw("gin_trgm_ops"))], type: Gin, map: "contacts_name_trgm")
   @@map("contacts")
 }
 
@@ -747,6 +753,8 @@ model Lead {
   convertedAt    DateTime? @map("converted_at") @db.Timestamptz(3)
   customFields   Json      @default("{}") @map("custom_fields")
   searchNorm     String    @default("") @map("search_norm")
+  /// Nombre normalizado (para duplicados aproximados).
+  nameNorm       String    @default("") @map("name_norm")
   version        Int       @default(0)
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
@@ -777,6 +785,7 @@ model Lead {
   @@index([organizationId, ownerId])
   @@index([searchNorm(ops: raw("gin_trgm_ops"))], type: Gin, map: "leads_search_trgm")
   @@index([customFields(ops: JsonbOps)], type: Gin, map: "leads_custom_fields_idx")
+  @@index([nameNorm(ops: raw("gin_trgm_ops"))], type: Gin, map: "leads_name_trgm")
   @@map("leads")
 }
 
@@ -810,6 +819,8 @@ model Deal {
   notes             String?
   customFields      Json      @default("{}") @map("custom_fields")
   searchNorm        String    @default("") @map("search_norm")
+  /// Nombre normalizado (para duplicados aproximados).
+  nameNorm          String    @default("") @map("name_norm")
   version           Int       @default(0)
   createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
@@ -840,6 +851,7 @@ model Deal {
   @@index([organizationId, status, closedAt])
   @@index([searchNorm(ops: raw("gin_trgm_ops"))], type: Gin, map: "deals_search_trgm")
   @@index([customFields(ops: JsonbOps)], type: Gin, map: "deals_custom_fields_idx")
+  @@index([nameNorm(ops: raw("gin_trgm_ops"))], type: Gin, map: "deals_name_trgm")
   @@map("deals")
 }
 
@@ -1095,4 +1107,77 @@ model Activity {
   @@index([organizationId, contactId, occurredAt])
   @@index([organizationId, companyId, occurredAt])
   @@map("activities")
+}
+
+// ---------------------------------------------------------------------------
+// Fase 5 — Duplicados y fusión
+// ---------------------------------------------------------------------------
+
+model DuplicateRule {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  entityType     String   @map("entity_type") @db.VarChar(10)
+  name           String   @db.VarChar(120)
+  active         Boolean  @default(true)
+  /// WARN (avisar al guardar) | BLOCK (impedir guardar)
+  action         String   @default("WARN") @db.VarChar(5)
+  /// [{ field, custom, mode: EXACT | NORMALIZED | FUZZY, threshold? }] combinadas con Y.
+  conditions     Json
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  candidates DuplicateCandidate[]
+
+  @@unique([organizationId, entityType, name])
+  @@index([organizationId, entityType, active])
+  @@map("duplicate_rules")
+}
+
+model DuplicateCandidate {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  entityType     String    @map("entity_type") @db.VarChar(10)
+  /// Par ordenado: record_a_id < record_b_id.
+  recordAId      String    @map("record_a_id") @db.Uuid
+  recordBId      String    @map("record_b_id") @db.Uuid
+  ruleId         String?   @map("rule_id") @db.Uuid
+  score          Decimal   @db.Decimal(5, 4)
+  /// [{ rule, fields: [...], score }]
+  matched        Json      @default("[]")
+  /// OPEN | KEPT_BOTH | REVIEWED | MERGED
+  status         String    @default("OPEN") @db.VarChar(10)
+  /// SCAN | SAVE | IMPORT
+  source         String    @default("SCAN") @db.VarChar(6)
+  reviewedById   String?   @map("reviewed_by_id") @db.Uuid
+  reviewedAt     DateTime? @map("reviewed_at") @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  rule DuplicateRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, entityType, recordAId, recordBId])
+  @@index([organizationId, status, entityType, score])
+  @@index([organizationId, entityType, recordAId])
+  @@index([organizationId, entityType, recordBId])
+  @@map("duplicate_candidates")
+}
+
+/// Registro de cada fusión: instantánea completa del absorbido y relaciones movidas.
+model MergeHistory {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  entityType     String   @map("entity_type") @db.VarChar(10)
+  survivorId     String   @map("survivor_id") @db.Uuid
+  mergedId       String   @map("merged_id") @db.Uuid
+  /// Elección por campo: { campo: SURVIVOR | ABSORBED | BOTH }
+  choices        Json
+  /// Relaciones movidas: { tabla: [ids] }
+  moved          Json
+  snapshot       Json
+  userId         String   @map("user_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([organizationId, entityType, survivorId])
+  @@index([organizationId, entityType, mergedId])
+  @@map("merge_history")
 }

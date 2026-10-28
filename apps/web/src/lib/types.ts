@@ -1,4 +1,4 @@
-import type { PermissionMap, SystemRoleKey } from '@crm/shared';
+import type { CandidateStatus, DuplicateEntity, PermissionMap, SystemRoleKey } from '@crm/shared';
 
 /** Tipos de las respuestas de la API usados en la interfaz. */
 
@@ -505,4 +505,66 @@ export interface ActivityItem {
   editedAt: string | null;
   createdAt: string;
   mine: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Fase 5
+// ---------------------------------------------------------------------------
+
+export interface DuplicateRule {
+  id: string;
+  entityType: DuplicateEntity;
+  name: string;
+  active: boolean;
+  action: 'WARN' | 'BLOCK';
+  conditions: { field: string; mode: 'EXACT' | 'NORMALIZED' | 'FUZZY'; threshold?: number }[];
+}
+
+export interface DuplicateSide {
+  id: string;
+  code: string | null;
+  name: string;
+  createdAt: string | null;
+  deleted: boolean;
+  ownerName?: string | null;
+}
+
+export interface DuplicateCandidate {
+  id: string;
+  entityType: DuplicateEntity;
+  status: CandidateStatus;
+  score: number;
+  source: 'SCAN' | 'SAVE' | 'IMPORT';
+  matched: { rule: string; fields: string[]; score: number }[];
+  a: DuplicateSide;
+  b: DuplicateSide;
+  createdAt: string;
+  reviewedAt: string | null;
+}
+
+export interface DuplicateCompare {
+  candidate: DuplicateCandidate;
+  entityType: DuplicateEntity;
+  a: DuplicateSide;
+  b: DuplicateSide;
+  fields: {
+    key: string;
+    label: string;
+    long: boolean;
+    a: string | null;
+    b: string | null;
+    differs: boolean;
+  }[];
+  relations: { key: string; label: string; a: number; b: number }[];
+  restrictions: string[];
+  suggestedSurvivorId: string;
+}
+
+export interface DuplicateHit {
+  id: string | null;
+  code: string | null;
+  name: string | null;
+  visible: boolean;
+  rules: { name: string; action: 'WARN' | 'BLOCK' }[];
+  blocking: boolean;
 }

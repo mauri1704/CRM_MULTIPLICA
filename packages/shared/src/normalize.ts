@@ -15,6 +15,14 @@ export function normalizeText(v: string | null | undefined): string {
     .trim();
 }
 
+/**
+ * Nombres de personas y empresas para detectar duplicados: como `normalizeText` pero sin puntos,
+ * de modo que «S.A.C.» y «SAC» o «E.I.R.L.» y «EIRL» coincidan.
+ */
+export function normalizeName(v: string | null | undefined): string {
+  return normalizeText(v).replace(/\./g, '').replace(/\s+/g, ' ').trim();
+}
+
 export function normalizeEmail(v: string | null | undefined): string | null {
   const s = v?.trim().toLowerCase();
   return s ? s : null;

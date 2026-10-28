@@ -135,6 +135,7 @@ export const AUDIT_EVENTS = [
   'CURRENCY_CHANGED',
   'MANUAL_EXCHANGE_RATE',
   'DEAL_REOPENED',
+  'DUPLICATE_RULE_CHANGED',
 ] as const;
 export type AuditEvent = (typeof AUDIT_EVENTS)[number];
 
@@ -165,4 +166,5 @@ export const AUDIT_EVENT_LABELS: Record<AuditEvent, string> = {
   CURRENCY_CHANGED: 'Moneda modificada',
   MANUAL_EXCHANGE_RATE: 'Tasa de cambio manual aplicada',
   DEAL_REOPENED: 'Negociación reabierta',
+  DUPLICATE_RULE_CHANGED: 'Regla de duplicados modificada',
 };

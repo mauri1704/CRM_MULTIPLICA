@@ -47,6 +47,15 @@ packages/shared/src/schemas/      validaciones compartidas (la API y los formula
    que el SQL generado no traiga `DROP INDEX` inesperados. Prohibido `prisma db push`, editar
    migraciones ya mergeadas, `DROP`/`TRUNCATE` de tablas con datos o renombrar columnas en un paso.
 
+## Duplicados
+
+Un módulo con duplicados se declara en `apps/api/src/modules/duplicates/duplicate-entities.ts`
+(tabla, columnas, normalización) y en `@crm/shared` (`DUPLICATE_FIELDS`). Sus `create`/`update`
+llaman a `DuplicateDetectionService.assertNoBlocking()` antes de escribir y a `onSaved()` después.
+La fusión (`merge.service.ts`) es la única que mueve relaciones entre registros: si agrega una
+tabla que apunta a contactos, compañías, productos, proyectos, prospectos o negociaciones, súmela a
+sus `relations()`. Los nombres para detectar duplicados van en columnas `name_norm` (sin puntos).
+
 ## Importación y exportación
 
 Cada módulo de datos aporta una `ImportExportDefinition` en

@@ -1,3 +1,4 @@
+import { DuplicateDetectionService } from './duplicates/duplicate-detection.service';
 import { CrmRecordsService } from './access/crm-records.service';
 import { Global, Module } from '@nestjs/common';
 import { AuditService } from './audit/audit.service';
@@ -24,6 +25,7 @@ import { RecordScopeService } from './access/record-scope.service';
     CustomFieldsService,
     RecordScopeService,
     CrmRecordsService,
+    DuplicateDetectionService,
   ],
   exports: [
     AuditService,
@@ -36,6 +38,7 @@ import { RecordScopeService } from './access/record-scope.service';
     CustomFieldsService,
     RecordScopeService,
     CrmRecordsService,
+    DuplicateDetectionService,
   ],
 })
 export class CoreModule {}

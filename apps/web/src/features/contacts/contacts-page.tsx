@@ -23,6 +23,7 @@ import { TabPanel, Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { ActivitiesPanel } from '@/features/activities/activities-panel';
 import { DataActions } from '@/features/import-export/data-actions';
+import { useDuplicateGuard } from '@/features/duplicates/duplicate-guard';
 import { CommentsPanel } from '@/features/sales/comments-panel';
 import { RelatedTasks } from '@/features/tasks/related-tasks';
 import { ApiError, api } from '@/lib/api';
@@ -271,6 +272,7 @@ function ContactForm({ contact, onClose }: { contact: Contact | null; onClose: (
     ? can('contacts', 'edit', contact.ownerId === me.id ? 'OWN' : 'TEAM')
     : true;
 
+  const guard = useDuplicateGuard('CONTACT');
   const form = useForm<FormIn, unknown, FormOut>({
     resolver: zodResolver(contactInput),
     defaultValues: {
@@ -297,6 +299,7 @@ function ContactForm({ contact, onClose }: { contact: Contact | null; onClose: (
       relatedCompanyIds: related.map((r) => r.id),
       customFields: cleanCustom(values.customFields as Record<string, unknown>),
     };
+    if (!contact && !(await guard.confirm(body))) return;
     try {
       if (contact)
         await api.patch(`/contacts/${contact.id}`, { ...body, version: contact.version });
@@ -498,6 +501,7 @@ function ContactForm({ contact, onClose }: { contact: Contact | null; onClose: (
           papelera.
         </ConfirmDialog>
       )}
+      {guard.dialog}
     </Drawer>
   );
 }

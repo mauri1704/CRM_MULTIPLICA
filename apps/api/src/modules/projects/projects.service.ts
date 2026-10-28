@@ -11,6 +11,7 @@ import { notFound, validationError } from '../../common/errors';
 import { Db } from '../../infra/db';
 import { RecordScopeService } from '../access/record-scope.service';
 import { assertVersion } from '../access/versioning';
+import { DuplicateDetectionService } from '../duplicates/duplicate-detection.service';
 import { HistoryService, diff } from '../history/history.service';
 import { SequenceService } from '../sequences/sequence.service';
 import { TrashService } from '../trash/trash.service';
@@ -64,6 +65,7 @@ export class ProjectsService implements OnModuleInit, TrashHandler {
     private readonly trash: TrashService,
     private readonly sequences: SequenceService,
     private readonly scope: RecordScopeService,
+    private readonly duplicates: DuplicateDetectionService,
   ) {}
 
   onModuleInit(): void {
@@ -161,6 +163,7 @@ export class ProjectsService implements OnModuleInit, TrashHandler {
 
   async create(user: AuthUser, input: ProjectInput) {
     const ownerId = await this.scope.resolveOwner(user, 'projects', 'create', input.ownerId);
+    await this.duplicates.assertNoBlocking('PROJECT', { name: input.name });
     const code = await this.sequences.next('PROJECT');
     const p = await this.db.tx.project.create({
       data: {
@@ -178,6 +181,7 @@ export class ProjectsService implements OnModuleInit, TrashHandler {
       },
     });
     await this.history.record('PROJECT', p.id, 'CREATE', user.id, { code, name: p.name, ownerId });
+    await this.duplicates.onSaved('PROJECT', p.id);
     return this.get(user, p.id);
   }
 
@@ -217,6 +221,7 @@ export class ProjectsService implements OnModuleInit, TrashHandler {
     });
     assertVersion(res.count);
     await this.history.record('PROJECT', id, 'UPDATE', user.id, changes);
+    await this.duplicates.onSaved('PROJECT', id);
     return this.get(user, id);
   }
 

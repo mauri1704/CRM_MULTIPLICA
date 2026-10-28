@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { CustomFieldInputs, cleanCustom, customDefaults } from '@/components/custom-field-inputs';
 import { HistoryButton } from '@/components/history-drawer';
 import { Button } from '@/components/ui/button';
+import { useDuplicateGuard } from '@/features/duplicates/duplicate-guard';
 import { ColumnsMenu } from '@/components/ui/columns-menu';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { DataTable } from '@/components/ui/data-table';
@@ -276,6 +277,7 @@ function ProductForm({ product, onClose }: { product: Product | null; onClose: (
   const editable = product ? can('products', 'edit') : can('products', 'create');
   const base = currencies.data?.find((c) => c.isBase)?.code ?? 'PEN';
 
+  const guard = useDuplicateGuard('PRODUCT');
   const form = useForm<FormIn, unknown, FormOut>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -299,6 +301,7 @@ function ProductForm({ product, onClose }: { product: Product | null; onClose: (
       ...rest,
       customFields: cleanCustom(values.customFields as Record<string, unknown>),
     };
+    if (!product && !(await guard.confirm(body))) return;
     try {
       if (product)
         await api.patch(`/products/${product.id}`, { ...body, active, version: product.version });
@@ -421,6 +424,7 @@ function ProductForm({ product, onClose }: { product: Product | null; onClose: (
           desactívelo.
         </ConfirmDialog>
       )}
+      {guard.dialog}
     </Drawer>
   );
 }

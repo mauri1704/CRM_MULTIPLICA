@@ -21,6 +21,7 @@ import { badRequest, conflict, forbidden, notFound, validationError } from '../.
 import { Db } from '../../infra/db';
 import { env } from '../../infra/env';
 import { RecordScopeService } from '../access/record-scope.service';
+import { DuplicateDetectionService } from '../duplicates/duplicate-detection.service';
 import { AuditService } from '../audit/audit.service';
 import type { Existing, ImportExportDefinition } from './definitions';
 import { ImportExportRegistry } from './registry';
@@ -73,6 +74,7 @@ export class ImportExportService {
     private readonly registry: ImportExportRegistry,
     private readonly scope: RecordScopeService,
     private readonly audit: AuditService,
+    private readonly detection: DuplicateDetectionService,
   ) {}
 
   private storagePath(rel: string) {
@@ -243,9 +245,11 @@ export class ImportExportService {
         }
         seen.set(parsed.key, row);
       }
-      const existing = parsed.key ? await def.findExisting(parsed.data, parsed.key) : null;
+      const found = parsed.key ? await def.findExisting(parsed.data, parsed.key) : null;
+      // «Crear de todos modos»: la coincidencia se informa, pero la fila se crea como nueva.
+      const existing = input.duplicateMode === 'CREATE' ? null : found;
+      if (found) duplicates++;
       if (existing) {
-        duplicates++;
         if (input.duplicateMode === 'SKIP') {
           skipped++;
           continue;
@@ -299,35 +303,94 @@ export class ImportExportService {
       return summary;
     }
 
+    if (input.atomic && errors.length > 0) {
+      // Todo o nada: con errores de validación no se escribe nada y el archivo se puede corregir.
+      await this.db.tx.importJob.update({
+        where: { id: job.id },
+        data: {
+          mapping: input.mapping,
+          duplicateMode: input.duplicateMode,
+          validRows: summary.valid,
+          invalidRows: summary.invalid,
+          errors: errors.slice(0, MAX_STORED_ERRORS) as unknown as Prisma.InputJsonValue,
+        },
+      });
+      return {
+        ...summary,
+        aborted: true,
+        created: 0,
+        updated: 0,
+        skipped,
+        invalid: summary.invalid,
+        possibleDuplicates: 0,
+      };
+    }
+
     let created = 0;
     let updated = 0;
-    for (const item of plan) {
-      await this.db.tx.$executeRaw`SAVEPOINT import_row`;
-      try {
-        if (item.existing) {
-          await def.update(user, item.existing, item.data);
-          updated++;
-        } else {
-          await def.create(user, item.data);
-          created++;
+    if (input.atomic) await this.db.tx.$executeRaw`SAVEPOINT import_all`;
+    const writes = await this.detection.runAs('IMPORT', async () => {
+      for (const item of plan) {
+        await this.db.tx.$executeRaw`SAVEPOINT import_row`;
+        try {
+          if (item.existing) {
+            await def.update(user, item.existing, item.data);
+            updated++;
+          } else {
+            await def.create(user, item.data);
+            created++;
+          }
+          await this.db.tx.$executeRaw`RELEASE SAVEPOINT import_row`;
+        } catch (e) {
+          await this.db.tx.$executeRaw`ROLLBACK TO SAVEPOINT import_row`;
+          const fieldErrors =
+            e instanceof Error && !(e instanceof Prisma.PrismaClientKnownRequestError)
+              ? safeFieldErrors(e)
+              : { _: 'No se pudo guardar la fila.' };
+          for (const [field, message] of Object.entries(fieldErrors)) {
+            errors.push({
+              row: item.row,
+              field: field === '_' ? '—' : (labels.get(field) ?? field),
+              message,
+            });
+          }
+          if (input.atomic) break;
         }
-        await this.db.tx.$executeRaw`RELEASE SAVEPOINT import_row`;
-      } catch (e) {
-        await this.db.tx.$executeRaw`ROLLBACK TO SAVEPOINT import_row`;
-        const fieldErrors =
-          e instanceof Error && !(e instanceof Prisma.PrismaClientKnownRequestError)
-            ? safeFieldErrors(e)
-            : { _: 'No se pudo guardar la fila.' };
-        for (const [field, message] of Object.entries(fieldErrors)) {
-          errors.push({
-            row: item.row,
-            field: field === '_' ? '—' : (labels.get(field) ?? field),
-            message,
-          });
-        }
+      }
+    });
+    if (input.atomic) {
+      if (errors.length > 0) {
+        await this.db.tx.$executeRaw`ROLLBACK TO SAVEPOINT import_all`;
+        created = 0;
+        updated = 0;
+      } else {
+        await this.db.tx.$executeRaw`RELEASE SAVEPOINT import_all`;
       }
     }
     const invalid = new Set(errors.map((e) => e.row)).size;
+    if (input.atomic && errors.length > 0) {
+      // No se guardó nada: el trabajo sigue disponible para corregir el archivo y reintentar.
+      await this.db.tx.importJob.update({
+        where: { id: job.id },
+        data: {
+          mapping: input.mapping,
+          duplicateMode: input.duplicateMode,
+          validRows: 0,
+          invalidRows: invalid,
+          errors: errors.slice(0, MAX_STORED_ERRORS) as unknown as Prisma.InputJsonValue,
+        },
+      });
+      return {
+        ...summary,
+        aborted: true,
+        created: 0,
+        updated: 0,
+        skipped,
+        invalid,
+        errors: errors.slice(0, 200),
+        possibleDuplicates: 0,
+      };
+    }
     await this.db.tx.importJob.update({
       where: { id: job.id },
       data: {
@@ -347,7 +410,15 @@ export class ImportExportService {
       userId: user.id,
       details: { entity: job.entityType, file: job.fileName, created, updated, skipped, invalid },
     });
-    return { ...summary, created, updated, skipped, invalid, errors: errors.slice(0, 200) };
+    return {
+      ...summary,
+      created,
+      updated,
+      skipped,
+      invalid,
+      errors: errors.slice(0, 200),
+      possibleDuplicates: writes.created,
+    };
   }
 
   /** Reporte de errores: fila, campo, mensaje y los valores originales de la fila. */

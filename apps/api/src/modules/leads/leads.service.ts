@@ -2,6 +2,7 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import {
   normalizeEmail,
+  normalizeName,
   normalizeText,
   type ConvertLeadInput,
   type LeadInput,
@@ -17,6 +18,7 @@ import { RecordScopeService } from '../access/record-scope.service';
 import { assertVersion, customValues } from '../access/versioning';
 import { CurrenciesService } from '../currencies/currencies.service';
 import { CustomFieldsService } from '../custom-fields/custom-fields.service';
+import { DuplicateDetectionService } from '../duplicates/duplicate-detection.service';
 import { HistoryService, diff } from '../history/history.service';
 import { SequenceService } from '../sequences/sequence.service';
 import { positionAt } from '../sales/board';
@@ -136,6 +138,7 @@ export class LeadsService implements OnModuleInit, TrashHandler {
     private readonly stages: StagesService,
     private readonly lines: LineItemsService,
     private readonly tasks: TasksService,
+    private readonly duplicates: DuplicateDetectionService,
   ) {}
 
   onModuleInit(): void {
@@ -251,6 +254,22 @@ export class LeadsService implements OnModuleInit, TrashHandler {
     }
   }
 
+  /** Recalcula el texto de búsqueda (p. ej. tras mover contactos o compañías por una fusión). */
+  async reindex(ids: string[]): Promise<void> {
+    for (const id of ids) {
+      const l = await this.db.tx.lead.findFirst({
+        where: { id, organizationId: this.db.organizationId },
+        include: { company: true, contact: true },
+      });
+      if (!l) continue;
+      const n = await this.names(l.companyId, l.contactId);
+      await this.db.tx.lead.updateMany({
+        where: { id, organizationId: this.db.organizationId },
+        data: this.norms(l, n.company, n.contact),
+      });
+    }
+  }
+
   async check(input: Partial<LeadInput>) {
     if (input.contactId) {
       const c = await this.db.tx.contact.findFirst({
@@ -281,6 +300,7 @@ export class LeadsService implements OnModuleInit, TrashHandler {
   ) {
     return {
       emailNorm: normalizeEmail(l.email),
+      nameNorm: normalizeName(l.title),
       searchNorm: normalizeText(
         [l.code, l.title, l.email, l.phone, companyName, contactName].filter(Boolean).join(' '),
       ),
@@ -320,6 +340,7 @@ export class LeadsService implements OnModuleInit, TrashHandler {
       _min: { stagePosition: true },
     });
     const n = await this.names(input.companyId, input.contactId);
+    await this.duplicates.assertNoBlocking('LEAD', { ...input, customFields: custom });
     const lead = await this.db.tx.lead.create({
       data: {
         organizationId: user.organizationId,
@@ -354,6 +375,7 @@ export class LeadsService implements OnModuleInit, TrashHandler {
       stage: stage.name,
       ownerId,
     });
+    await this.duplicates.onSaved('LEAD', lead.id);
     return this.get(user, lead.id);
   }
 
@@ -376,6 +398,11 @@ export class LeadsService implements OnModuleInit, TrashHandler {
       FIELDS,
     );
     if (Object.keys(changes).length === 0) return this.get(user, id);
+    await this.duplicates.assertNoBlocking(
+      'LEAD',
+      { ...before, ...fields, customFields: custom ?? customValues(before.customFields) },
+      id,
+    );
     const currencyChanged =
       fields.currencyCode !== undefined && fields.currencyCode !== before.currencyCode;
     const merged = { ...before, ...fields };
@@ -406,6 +433,7 @@ export class LeadsService implements OnModuleInit, TrashHandler {
     if (currencyChanged)
       await this.lines.reprice(user, { kind: 'LEAD', id, currencyCode: fields.currencyCode! });
     await this.history.record('LEAD', id, 'UPDATE', user.id, changes);
+    await this.duplicates.onSaved('LEAD', id);
     return this.get(user, id);
   }
 
@@ -649,6 +677,7 @@ export class LeadsService implements OnModuleInit, TrashHandler {
             : null,
           notes: lead.notes,
           customFields: custom as Prisma.InputJsonValue,
+          nameNorm: normalizeName(title),
           searchNorm: normalizeText(
             [code, title, lead.company?.legalName].filter(Boolean).join(' '),
           ),
@@ -763,6 +792,7 @@ export class LeadsService implements OnModuleInit, TrashHandler {
     const movedTasks = input.moveOpenTasks
       ? await this.tasks.moveOpenFromLeadToDeal(user, id, deal.id, correlationId)
       : 0;
+    await this.duplicates.onSaved('DEAL', deal.id);
     return { dealId: deal.id, dealCode: deal.code, movedTasks };
   }
 

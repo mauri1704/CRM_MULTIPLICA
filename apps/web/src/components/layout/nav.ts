@@ -7,6 +7,7 @@ import {
   Contact,
   FileSpreadsheet,
   Package,
+  CopyCheck,
   GitBranch,
   FolderKanban,
   ListTodo,
@@ -88,6 +89,12 @@ export const NAV: NavSection[] = [
   {
     title: 'Calidad de datos',
     items: [
+      {
+        to: '/duplicados',
+        label: 'Duplicados',
+        icon: CopyCheck,
+        permission: ['duplicates', 'view'],
+      },
       {
         to: '/importaciones',
         label: 'Importaciones',

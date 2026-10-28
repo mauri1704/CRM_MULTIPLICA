@@ -4,6 +4,7 @@ import {
   normalizeEmail,
   normalizeIdentifier,
   normalizePhone,
+  normalizeName,
   normalizeText,
   type CompanyInput,
   type CompanyUpdate,
@@ -12,6 +13,7 @@ import type { Actor, AuthUser } from '../../common/auth.types';
 import { conflict, notFound } from '../../common/errors';
 import { Db } from '../../infra/db';
 import { CustomFieldsService } from '../custom-fields/custom-fields.service';
+import { DuplicateDetectionService } from '../duplicates/duplicate-detection.service';
 import { HistoryService, diff } from '../history/history.service';
 import { SequenceService } from '../sequences/sequence.service';
 import { TrashService } from '../trash/trash.service';
@@ -93,6 +95,7 @@ export class CompaniesService implements OnModuleInit, TrashHandler {
     private readonly sequences: SequenceService,
     private readonly scope: RecordScopeService,
     private readonly customFields: CustomFieldsService,
+    private readonly duplicates: DuplicateDetectionService,
   ) {}
 
   onModuleInit(): void {
@@ -257,6 +260,7 @@ export class CompaniesService implements OnModuleInit, TrashHandler {
   }) {
     return {
       taxIdNorm: normalizeIdentifier(c.taxId),
+      nameNorm: normalizeName(c.legalName),
       emailNorm: normalizeEmail(c.email),
       phoneNorm: normalizePhone(c.phone),
       searchNorm: normalizeText(
@@ -272,6 +276,7 @@ export class CompaniesService implements OnModuleInit, TrashHandler {
     const custom = await this.customFields.validate('COMPANY', input.customFields);
     const code = await this.sequences.next('COMPANY');
     const { customFields: _cf, ownerId: _o, ...fields } = input;
+    await this.duplicates.assertNoBlocking('COMPANY', { ...fields, customFields: custom });
     const c = await this.db.tx.company.create({
       data: {
         ...fields,
@@ -290,6 +295,7 @@ export class CompaniesService implements OnModuleInit, TrashHandler {
       taxId: c.taxId,
       ownerId,
     });
+    await this.duplicates.onSaved('COMPANY', c.id);
     return companyDto(await this.findAlive(c.id));
   }
 
@@ -317,6 +323,11 @@ export class CompaniesService implements OnModuleInit, TrashHandler {
       FIELDS,
     );
     if (Object.keys(changes).length === 0) return companyDto(before);
+    await this.duplicates.assertNoBlocking(
+      'COMPANY',
+      { ...merged, customFields: custom ?? customValues(before.customFields) },
+      id,
+    );
     const res = await this.db.tx.company.updateMany({
       where: {
         id,
@@ -334,6 +345,7 @@ export class CompaniesService implements OnModuleInit, TrashHandler {
     });
     assertVersion(res.count);
     await this.history.record('COMPANY', id, 'UPDATE', user.id, changes);
+    await this.duplicates.onSaved('COMPANY', id);
     return companyDto(await this.findAlive(id));
   }
 

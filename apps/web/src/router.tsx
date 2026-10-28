@@ -18,6 +18,9 @@ import { TrashPage } from '@/features/trash/trash-page';
 import { CompaniesPage } from '@/features/companies/companies-page';
 import { ContactsPage } from '@/features/contacts/contacts-page';
 import { DealsPage } from '@/features/deals/deals-page';
+import { DuplicateComparePage } from '@/features/duplicates/duplicate-compare-page';
+import { DuplicateRulesPage } from '@/features/duplicates/duplicate-rules-page';
+import { DuplicatesPage } from '@/features/duplicates/duplicates-page';
 import { LeadsPage } from '@/features/leads/leads-page';
 import { ProjectsPage } from '@/features/projects/projects-page';
 import { TasksPage } from '@/features/tasks/tasks-page';
@@ -91,6 +94,30 @@ export const router = createBrowserRouter([
         element: (
           <RequirePermission module="products" action="view">
             <ProductsPage />
+          </RequirePermission>
+        ),
+      },
+      {
+        path: 'duplicados',
+        element: (
+          <RequirePermission module="duplicates" action="view">
+            <DuplicatesPage />
+          </RequirePermission>
+        ),
+      },
+      {
+        path: 'duplicados/reglas',
+        element: (
+          <RequirePermission module="duplicates" action="manage">
+            <DuplicateRulesPage />
+          </RequirePermission>
+        ),
+      },
+      {
+        path: 'duplicados/:id',
+        element: (
+          <RequirePermission module="duplicates" action="view">
+            <DuplicateComparePage />
           </RequirePermission>
         ),
       },

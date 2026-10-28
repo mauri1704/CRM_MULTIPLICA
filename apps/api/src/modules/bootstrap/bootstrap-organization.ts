@@ -1,5 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
 import {
+  DEFAULT_DUPLICATE_RULES,
   DEFAULT_ORGANIZATION_SETTINGS,
   DEFAULT_ROLE_PERMISSIONS,
   SYSTEM_ROLE_KEYS,
@@ -123,6 +124,16 @@ export async function bootstrapOrganization(
           'Tecnología',
           'Turismo',
         ].map((name) => ({ organizationId, name })),
+      });
+      await tx.duplicateRule.createMany({
+        data: DEFAULT_DUPLICATE_RULES.map((r) => ({
+          organizationId,
+          entityType: r.entityType,
+          name: r.name,
+          active: r.active,
+          action: r.action,
+          conditions: r.conditions,
+        })),
       });
       await tx.taskStatus.createMany({
         data: [

@@ -34,13 +34,15 @@ export const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
 export const MAX_EXPORT_ROWS = 50_000;
 
 /** Qué hacer con filas que coinciden con un registro existente por la clave de correspondencia. */
-export const DUPLICATE_MODES = ['SKIP', 'UPDATE'] as const;
+export const DUPLICATE_MODES = ['SKIP', 'UPDATE', 'CREATE'] as const;
 export type DuplicateMode = (typeof DUPLICATE_MODES)[number];
 
 export const importRunInput = z.object({
   /** columna del archivo → campo del CRM (o '' para ignorarla) */
   mapping: z.record(z.string()),
   duplicateMode: z.enum(DUPLICATE_MODES).default('SKIP'),
+  /** Todo o nada: si una fila falla, no se guarda ninguna. */
+  atomic: z.boolean().default(false),
 });
 export type ImportRunInput = z.infer<typeof importRunInput>;
 
@@ -66,4 +68,8 @@ export interface ImportSummary {
   toUpdate: number;
   toSkip: number;
   errors: ImportRowError[];
+  /** Solo al confirmar en modo todo o nada: no se guardó nada porque alguna fila falló. */
+  aborted?: boolean;
+  /** Solo al confirmar: coincidencias nuevas con registros existentes, por revisar. */
+  possibleDuplicates?: number;
 }

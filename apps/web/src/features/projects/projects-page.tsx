@@ -27,6 +27,7 @@ import { Badge, Card, EmptyState, PageHeader, Spinner } from '@/components/ui/mi
 import { TabPanel, Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { DataActions } from '@/features/import-export/data-actions';
+import { useDuplicateGuard } from '@/features/duplicates/duplicate-guard';
 import { RelatedTasks } from '@/features/tasks/related-tasks';
 import { ApiError, api } from '@/lib/api';
 import { useAuth, useUser } from '@/lib/auth';
@@ -254,6 +255,7 @@ function ProjectForm({ project, onClose }: { project: Project | null; onClose: (
     ? can('projects', 'edit', project.ownerId === me.id ? 'OWN' : 'TEAM')
     : true;
 
+  const guard = useDuplicateGuard('PROJECT');
   const form = useForm<FormIn, unknown, FormOut>({
     resolver: zodResolver(projectInput),
     defaultValues: {
@@ -269,6 +271,7 @@ function ProjectForm({ project, onClose }: { project: Project | null; onClose: (
 
   const onSubmit = form.handleSubmit(async (values) => {
     setError(null);
+    if (!project && !(await guard.confirm(values))) return;
     try {
       if (project)
         await api.patch(`/projects/${project.id}`, { ...values, version: project.version });
@@ -401,6 +404,7 @@ function ProjectForm({ project, onClose }: { project: Project | null; onClose: (
       ) : (
         datos
       )}
+      {guard.dialog}
     </Drawer>
   );
 }

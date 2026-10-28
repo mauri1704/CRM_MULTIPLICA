@@ -6,7 +6,7 @@
  *   comercial@multiplica.test  / Venta12345   (Comercial, equipo Ventas Lima)
  */
 import { PrismaClient, type Prisma } from '@prisma/client';
-import { normalizeIdentifier, normalizeText } from '@crm/shared';
+import { normalizeIdentifier, normalizeName, normalizeText } from '@crm/shared';
 import { hashPassword } from '../src/modules/auth/password';
 import { computeLine } from '../src/modules/sales/line-math';
 import { bootstrapOrganization } from '../src/modules/bootstrap/bootstrap-organization';
@@ -23,11 +23,13 @@ async function main() {
       // Complemento por fase: agrega lo que falte sin tocar lo existente.
       const added = await db.$transaction(async (tx) => {
         await tx.$executeRaw`SELECT set_config('app.organization_id', ${existing.id}, true)`;
-        return seedOperations(tx, existing.id);
+        const ops = await seedOperations(tx, existing.id);
+        const dups = await seedDuplicates(tx, existing.id);
+        return ops || dups;
       });
       console.log(
         added
-          ? 'La organización demo ya existía: se agregaron proyectos, tareas y actividades.'
+          ? 'La organización demo ya existía: se agregaron los datos de las fases nuevas.'
           : 'La organización demo ya existe; no se modifica.',
       );
       return;
@@ -165,6 +167,7 @@ async function main() {
               organizationId,
               taxIdTypeId: ruc.id,
               taxIdNorm: c.taxId,
+              nameNorm: normalizeName(c.legalName),
               searchNorm: normalizeText(`${c.code} ${c.legalName} ${c.taxId}`),
               createdById: adminUserId,
             },
@@ -201,6 +204,7 @@ async function main() {
             documentTypeId: dni.id,
             documentNorm: c.documentNumber,
             emailNorm: c.email,
+            nameNorm: normalizeName(`${c.firstName} ${c.lastName}`),
             searchNorm: normalizeText(
               `${c.code} ${c.firstName} ${c.lastName} ${c.email} ${c.documentNumber}`,
             ),
@@ -282,6 +286,7 @@ async function main() {
             priorityId: prio(l.priority),
             currencyCode: 'PEN',
             estimatedValue: l.value,
+            nameNorm: normalizeName(l.title),
             searchNorm: normalizeText(`${code} ${l.title}`),
             createdById: adminUserId,
           },
@@ -381,6 +386,7 @@ async function main() {
             subtotal: a.subtotal,
             discount: a.discount,
             total: a.total,
+            nameNorm: normalizeName(d.title),
             searchNorm: normalizeText(`${code} ${d.title}`),
             createdById: adminUserId,
           },
@@ -408,6 +414,7 @@ async function main() {
         ],
       });
       await seedOperations(tx, organizationId);
+      await seedDuplicates(tx, organizationId);
     });
     console.log('Organización demo creada.');
   } finally {
@@ -416,6 +423,62 @@ async function main() {
 }
 
 type Tx = Prisma.TransactionClient;
+
+const nextCode = async (tx: Tx, organizationId: string, entity: 'CONTACT' | 'COMPANY') => {
+  const prefix = entity === 'CONTACT' ? 'CON' : 'CIA';
+  const row = await tx.sequence.findFirst({ where: { organizationId, entityType: entity } });
+  const n = row?.nextValue ?? 1;
+  await tx.sequence.upsert({
+    where: { organizationId_entityType: { organizationId, entityType: entity } },
+    update: { nextValue: n + 1 },
+    create: { organizationId, entityType: entity, nextValue: n + 1 },
+  });
+  return `${prefix}-${String(n).padStart(6, '0')}`;
+};
+
+/** Fase 5: una compañía y un contacto repetidos a propósito, para probar «Buscar duplicados». */
+async function seedDuplicates(tx: Tx, organizationId: string): Promise<boolean> {
+  const original = await tx.contact.findFirst({
+    where: { organizationId, email: 'lucia.paredes@andes.pe', deletedAt: null },
+  });
+  const company = await tx.company.findFirst({
+    where: { organizationId, legalName: 'Andes Logística S.A.C.', deletedAt: null },
+  });
+  if (!original || !company) return false;
+  const already = await tx.company.findFirst({
+    where: { organizationId, legalName: 'Andes Logistica SAC' },
+  });
+  if (already) return false;
+  const code = await nextCode(tx, organizationId, 'COMPANY');
+  await tx.company.create({
+    data: {
+      organizationId,
+      code,
+      legalName: 'Andes Logistica SAC',
+      nameNorm: normalizeName('Andes Logistica SAC'),
+      searchNorm: normalizeText(`${code} Andes Logistica SAC`),
+      city: 'Lima',
+      createdById: original.createdById,
+    },
+  });
+  const contactCode = await nextCode(tx, organizationId, 'CONTACT');
+  await tx.contact.create({
+    data: {
+      organizationId,
+      code: contactCode,
+      firstName: 'Lucia',
+      lastName: 'Paredes',
+      email: 'LUCIA.PAREDES@ANDES.PE',
+      emailNorm: 'lucia.paredes@andes.pe',
+      jobTitle: 'Compras',
+      ownerId: original.ownerId,
+      nameNorm: normalizeName('Lucia Paredes'),
+      searchNorm: normalizeText(`${contactCode} Lucia Paredes LUCIA.PAREDES@ANDES.PE`),
+      createdById: original.createdById,
+    },
+  });
+  return true;
+}
 
 /** Fase 4: un proyecto, tareas en varios estados y actividades. Devuelve false si ya existían. */
 async function seedOperations(tx: Tx, organizationId: string): Promise<boolean> {
