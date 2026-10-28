@@ -7,13 +7,13 @@ import { CurrentUser } from '../../common/decorators';
 import { ZodQuery } from '../../common/zod';
 import { Db } from '../../infra/db';
 import { RecordScopeService } from '../access/record-scope.service';
+import { TasksService } from '../tasks/tasks.service';
 
 const searchQuery = z.object({ q: z.string().trim().min(2).max(100) });
 const LIMIT = 6;
 
 /**
  * Búsqueda global (barra superior). Solo devuelve lo que el usuario puede ver, con su alcance.
- * Se amplía con prospectos, negociaciones y tareas en las fases siguientes.
  */
 @ApiTags('Búsqueda')
 @Controller('search')
@@ -21,6 +21,7 @@ export class SearchController {
   constructor(
     private readonly db: Db,
     private readonly scope: RecordScopeService,
+    private readonly tasks: TasksService,
   ) {}
 
   @Get()
@@ -70,6 +71,33 @@ export class SearchController {
           })
         : [],
     ]);
+    const [tasks, projects] = await Promise.all([
+      can(user.permissions, 'tasks', 'view')
+        ? this.tasks.where(user, {}).then((w) =>
+            this.db.tx.task.findMany({
+              where: { ...w, searchNorm: { contains: norm } },
+              select: { id: true, code: true, title: true, status: { select: { name: true } } },
+              take: LIMIT,
+              orderBy: { createdAt: 'desc' },
+            }),
+          )
+        : [],
+      can(user.permissions, 'projects', 'view')
+        ? this.scope.ownerWhere(user, 'projects', 'view').then((w) =>
+            this.db.tx.project.findMany({
+              where: {
+                organizationId: org,
+                deletedAt: null,
+                ...w,
+                OR: [{ nameNorm: { contains: norm } }, { code: { contains: q.toUpperCase() } }],
+              },
+              select: { id: true, code: true, name: true },
+              take: LIMIT,
+              orderBy: { createdAt: 'desc' },
+            }),
+          )
+        : [],
+    ]);
     const [leads, deals] = await Promise.all([
       can(user.permissions, 'leads', 'view')
         ? this.scope.ownerWhere(user, 'leads', 'view').then((w) =>
@@ -114,6 +142,12 @@ export class SearchController {
         subtitle: [c.code, c.taxId].filter(Boolean).join(' · '),
       })),
       products: products.map((p) => ({ id: p.id, title: p.name, subtitle: p.sku })),
+      tasks: tasks.map((t) => ({
+        id: t.id,
+        title: t.title,
+        subtitle: `${t.code} · ${t.status.name}`,
+      })),
+      projects: projects.map((p) => ({ id: p.id, title: p.name, subtitle: p.code })),
     };
   }
 }

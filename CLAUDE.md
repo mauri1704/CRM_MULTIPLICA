@@ -42,8 +42,10 @@ packages/shared/src/schemas/      validaciones compartidas (la API y los formula
    `AuditService.log()` (añade el evento a `AUDIT_EVENTS` en shared).
 6. Dinero: `numeric` en BD y decimal exacto en el servidor; nunca `float`. Nunca sumar monedas distintas.
 7. Migraciones: `pnpm db:migrate --create-only --name x` → revisar el SQL → añadir RLS/permisos →
-   aplicar. Prohibido `prisma db push`, editar migraciones ya mergeadas, `DROP`/`TRUNCATE` de tablas
-   con datos o renombrar columnas en un paso.
+   aplicar. Todo índice que Prisma pueda expresar (únicos, GIN con `gin_trgm_ops`/`JsonbOps`) se
+   declara en `schema.prisma`, no solo en el SQL: si no, la siguiente migración lo elimina. Revise
+   que el SQL generado no traiga `DROP INDEX` inesperados. Prohibido `prisma db push`, editar
+   migraciones ya mergeadas, `DROP`/`TRUNCATE` de tablas con datos o renombrar columnas en un paso.
 
 ## Importación y exportación
 

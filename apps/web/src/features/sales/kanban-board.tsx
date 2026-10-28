@@ -17,13 +17,11 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { CheckCircle2, CircleDot, Repeat, XCircle } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { cn } from '@/lib/cn';
 import { useMoney } from '@/lib/money';
 import type { BoardColumn, StageRef } from '@/lib/types';
-
-const KIND_ICON = { OPEN: CircleDot, WON: CheckCircle2, LOST: XCircle, CONVERTED: Repeat } as const;
+import { STAGE_KIND } from './stage-kind';
 
 interface KanbanProps<T extends { id: string }> {
   columns: BoardColumn<T>[];
@@ -35,6 +33,8 @@ interface KanbanProps<T extends { id: string }> {
    */
   onMove: (item: T, to: StageRef, index: number) => Promise<boolean>;
   canMove: (item: T) => boolean;
+  /** Sumas de importes por columna (prospectos y negociaciones). */
+  showSums?: boolean;
 }
 
 /**
@@ -47,6 +47,7 @@ export function KanbanBoard<T extends { id: string }>({
   onOpen,
   onMove,
   canMove,
+  showSums = true,
 }: KanbanProps<T>) {
   const money = useMoney();
   const [local, setLocal] = useState(columns);
@@ -117,7 +118,11 @@ export function KanbanBoard<T extends { id: string }>({
           <Column
             key={col.stage.id}
             column={col}
-            sums={col.sums.map((s) => money(s.amount, s.currencyCode)).join(' · ')}
+            sums={
+              showSums
+                ? col.sums.map((s) => money(s.amount, s.currencyCode)).join(' · ') || '—'
+                : null
+            }
           >
             <SortableContext
               items={col.items.map((i) => i.id)}
@@ -154,11 +159,11 @@ function Column({
   children,
 }: {
   column: BoardColumn<{ id: string }>;
-  sums: string;
+  sums: string | null;
   children: ReactNode;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: column.stage.id });
-  const Icon = KIND_ICON[column.stage.kind];
+  const Icon = STAGE_KIND[column.stage.kind].icon;
   return (
     <section
       ref={setNodeRef}
@@ -185,7 +190,7 @@ function Column({
           </h2>
           <span className="rounded-full bg-surface px-2 text-xs text-fg-muted">{column.count}</span>
         </div>
-        <p className="mt-1 min-h-4 text-xs text-fg-muted">{sums || '—'}</p>
+        {sums !== null && <p className="mt-1 min-h-4 text-xs text-fg-muted">{sums}</p>}
       </header>
       <div className="flex min-h-[120px] flex-1 flex-col gap-2 p-2">{children}</div>
     </section>

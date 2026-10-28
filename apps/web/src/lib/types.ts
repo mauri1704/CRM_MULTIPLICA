@@ -315,6 +315,8 @@ export interface ImportJob {
 }
 
 export interface SearchResult {
+  tasks: { id: string; title: string; subtitle: string }[];
+  projects: { id: string; title: string; subtitle: string }[];
   leads: { id: string; title: string; subtitle: string }[];
   deals: { id: string; title: string; subtitle: string }[];
   contacts: { id: string; title: string; subtitle: string }[];
@@ -337,7 +339,8 @@ export interface PriorityRef {
 export interface StageRef {
   id: string;
   name: string;
-  kind: 'OPEN' | 'WON' | 'LOST' | 'CONVERTED';
+  /** Tipo de etapa (prospectos/negociaciones) o categoría de estado (tareas). */
+  kind: 'OPEN' | 'WON' | 'LOST' | 'CONVERTED' | 'IN_PROGRESS' | 'REVIEW' | 'DONE' | 'CANCELED';
   color: string;
   probability?: number | null;
 }
@@ -438,6 +441,67 @@ export interface CommentItem {
   body: string;
   author: Ref;
   mentions: Ref[];
+  editedAt: string | null;
+  createdAt: string;
+  mine: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Fase 4
+// ---------------------------------------------------------------------------
+
+export type TaskCrmType = 'CONTACT' | 'COMPANY' | 'LEAD' | 'DEAL';
+export type TaskRole = 'RESPONSIBLE' | 'PARTICIPANT' | 'OBSERVER';
+
+export interface Task {
+  id: string;
+  code: string;
+  title: string;
+  description: string | null;
+  responsible: Ref;
+  responsibleId: string;
+  participants: Ref[];
+  observers: Ref[];
+  startAt: string | null;
+  dueAt: string | null;
+  priority: PriorityRef | null;
+  priorityId: string | null;
+  status: { id: string; name: string; color: string; category: StageRef['kind'] };
+  statusId: string;
+  project: { id: string; code: string; name: string } | null;
+  projectId: string | null;
+  crm: { type: TaskCrmType; id: string; code: string; name: string } | null;
+  completedAt: string | null;
+  overdue: boolean;
+  customFields: CustomValues;
+  version: number;
+  createdAt: string;
+  myRole: TaskRole | null;
+  can: { edit: boolean; status: boolean; delete: boolean };
+}
+
+export interface Project {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  owner: Ref | null;
+  ownerId: string | null;
+  status: 'PLANNED' | 'ACTIVE' | 'ON_HOLD' | 'CLOSED';
+  startDate: string | null;
+  endDate: string | null;
+  version: number;
+  createdAt: string;
+  tasks?: { open: number; done: number };
+}
+
+export interface ActivityItem {
+  id: string;
+  type: 'CALL' | 'MEETING' | 'EMAIL' | 'NOTE';
+  subject: string;
+  notes: string | null;
+  occurredAt: string;
+  author: Ref;
   editedAt: string | null;
   createdAt: string;
   mine: boolean;

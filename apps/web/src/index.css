@@ -48,3 +48,33 @@
     @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-bg;
   }
 }
+
+/* Calendario de tareas (FullCalendar) con los tokens del tema. */
+.task-calendar {
+  --fc-border-color: rgb(var(--border));
+  --fc-page-bg-color: rgb(var(--surface));
+  --fc-neutral-bg-color: rgb(var(--muted));
+  --fc-list-event-hover-bg-color: rgb(var(--muted));
+  --fc-today-bg-color: rgb(var(--primary) / 0.08);
+  --fc-now-indicator-color: rgb(var(--danger));
+  --fc-button-bg-color: rgb(var(--surface));
+  --fc-button-border-color: rgb(var(--border));
+  --fc-button-text-color: rgb(var(--fg));
+  --fc-button-hover-bg-color: rgb(var(--muted));
+  --fc-button-hover-border-color: rgb(var(--border));
+  --fc-button-active-bg-color: rgb(var(--primary));
+  --fc-button-active-border-color: rgb(var(--primary));
+  --fc-event-text-color: #fff;
+}
+.task-calendar .fc .fc-toolbar-title {
+  @apply text-base font-semibold;
+}
+.task-calendar .fc .fc-button {
+  @apply text-sm capitalize shadow-none;
+}
+.task-calendar .fc .fc-button-active {
+  color: rgb(var(--primary-fg));
+}
+.task-calendar .fc-event {
+  border-left-width: 4px;
+}

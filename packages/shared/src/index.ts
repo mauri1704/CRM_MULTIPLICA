@@ -14,3 +14,4 @@ export * from './schemas/crm';
 export * from './schemas/money';
 export * from './schemas/import';
 export * from './schemas/sales';
+export * from './schemas/work';

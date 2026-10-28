@@ -20,6 +20,9 @@ import { Input, Select, Textarea } from '@/components/ui/input';
 import { Card, EmptyState, PageHeader, Spinner } from '@/components/ui/misc';
 import { TabPanel, Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
+import { ActivitiesPanel } from '@/features/activities/activities-panel';
+import { RelatedTasks } from '@/features/tasks/related-tasks';
+import { CommentsPanel } from '@/features/sales/comments-panel';
 import { DataActions } from '@/features/import-export/data-actions';
 import { ApiError, api } from '@/lib/api';
 import { useAuth, useUser } from '@/lib/auth';
@@ -423,6 +426,9 @@ function CompanyForm({ company, onClose }: { company: CompanyDetail | null; onCl
                 value: 'contactos',
                 label: `Contactos (${company.contacts.length + company.relatedContacts.length})`,
               },
+              { value: 'tareas', label: 'Tareas' },
+              { value: 'actividad', label: 'Actividad' },
+              { value: 'comentarios', label: 'Comentarios' },
             ]}
           >
             <TabPanel value="datos" forceMount hidden={tab !== 'datos'}>
@@ -440,6 +446,19 @@ function CompanyForm({ company, onClose }: { company: CompanyDetail | null; onCl
                   y elija esta compañía.
                 </p>
               )}
+            </TabPanel>
+            <TabPanel value="tareas">
+              {tab === 'tareas' && (
+                <RelatedTasks
+                  target={{ type: 'COMPANY', id: company.id, name: company.legalName }}
+                />
+              )}
+            </TabPanel>
+            <TabPanel value="actividad">
+              {tab === 'actividad' && <ActivitiesPanel type="COMPANY" id={company.id} />}
+            </TabPanel>
+            <TabPanel value="comentarios">
+              {tab === 'comentarios' && <CommentsPanel type="COMPANY" id={company.id} />}
             </TabPanel>
           </Tabs>
           <ConfirmDialog

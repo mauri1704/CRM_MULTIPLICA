@@ -1,3 +1,4 @@
+import { CrmRecordsService } from './access/crm-records.service';
 import { Global, Module } from '@nestjs/common';
 import { AuditService } from './audit/audit.service';
 import { SessionService } from './auth/session.service';
@@ -22,6 +23,7 @@ import { RecordScopeService } from './access/record-scope.service';
     TrashService,
     CustomFieldsService,
     RecordScopeService,
+    CrmRecordsService,
   ],
   exports: [
     AuditService,
@@ -33,6 +35,7 @@ import { RecordScopeService } from './access/record-scope.service';
     TrashService,
     CustomFieldsService,
     RecordScopeService,
+    CrmRecordsService,
   ],
 })
 export class CoreModule {}

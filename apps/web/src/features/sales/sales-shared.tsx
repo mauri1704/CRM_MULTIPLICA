@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { CheckCircle2, CircleDot, KanbanSquare, List, Repeat, XCircle } from 'lucide-react';
+import { CalendarDays, KanbanSquare, List } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { PriorityBadge } from '@/components/priority-badge';
 import { Button } from '@/components/ui/button';
@@ -9,8 +9,16 @@ import { api } from '@/lib/api';
 import { useCatalog, useUserOptions } from '@/lib/hooks';
 import type { Pipeline, PriorityRef, StageRef } from '@/lib/types';
 import { LossDialog, WinDialog, todayLima } from './stage-dialogs';
+import { STAGE_KIND } from './stage-kind';
 
 export type SalesView = 'kanban' | 'list';
+export type WorkView = SalesView | 'calendar';
+
+const VIEWS = {
+  kanban: { label: 'Tablero', icon: KanbanSquare },
+  list: { label: 'Lista', icon: List },
+  calendar: { label: 'Calendario', icon: CalendarDays },
+} as const;
 
 export const usePipelines = (entityType: 'LEAD' | 'DEAL') =>
   useQuery({
@@ -26,12 +34,14 @@ export function pickPipeline(pipelines: Pipeline[] | undefined, saved: string) {
   );
 }
 
-export function ViewToggle({
+export function ViewToggle<V extends WorkView>({
   value,
   onChange,
+  views = ['kanban', 'list'] as V[],
 }: {
-  value: SalesView;
-  onChange: (v: SalesView) => void;
+  value: V;
+  onChange: (v: V) => void;
+  views?: V[];
 }) {
   return (
     <div
@@ -39,23 +49,20 @@ export function ViewToggle({
       role="group"
       aria-label="Vista"
     >
-      {(
-        [
-          ['kanban', 'Tablero', KanbanSquare],
-          ['list', 'Lista', List],
-        ] as const
-      ).map(([v, label, Icon]) => (
-        <Button
-          key={v}
-          size="sm"
-          variant={value === v ? 'primary' : 'ghost'}
-          aria-pressed={value === v}
-          onClick={() => onChange(v)}
-        >
-          <Icon className="h-4 w-4" aria-hidden />
-          {label}
-        </Button>
-      ))}
+      {views
+        .map((v) => [v, VIEWS[v].label, VIEWS[v].icon] as const)
+        .map(([v, label, Icon]) => (
+          <Button
+            key={v}
+            size="sm"
+            variant={value === v ? 'primary' : 'ghost'}
+            aria-pressed={value === v}
+            onClick={() => onChange(v)}
+          >
+            <Icon className="h-4 w-4" aria-hidden />
+            {label}
+          </Button>
+        ))}
     </div>
   );
 }
@@ -163,16 +170,9 @@ export function useCloseDialogs() {
   return { askLoss, askWin, dialog };
 }
 
-const KIND = {
-  OPEN: { icon: CircleDot, tone: 'neutral' },
-  WON: { icon: CheckCircle2, tone: 'success' },
-  LOST: { icon: XCircle, tone: 'danger' },
-  CONVERTED: { icon: Repeat, tone: 'primary' },
-} as const;
-
 /** Etapa con texto + ícono + color según su tipo. */
 export function StageBadge({ stage }: { stage: StageRef }) {
-  const k = KIND[stage.kind];
+  const k = STAGE_KIND[stage.kind];
   return (
     <Badge tone={k.tone} icon={k.icon}>
       {stage.name}

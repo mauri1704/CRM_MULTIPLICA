@@ -9,6 +9,8 @@ import { DealsService } from './deals/deals.service';
 import { LeadsService } from './leads/leads.service';
 import { LineItemsService } from './sales/line-items.service';
 import { StagesService } from './sales/stages';
+import { ProjectsService } from './projects/projects.service';
+import { TasksService } from './tasks/tasks.service';
 
 /**
  * Servicios de dominio. Se cargan también en el worker para que registren sus manejadores de
@@ -25,6 +27,8 @@ const services = [
   LineItemsService,
   LeadsService,
   DealsService,
+  ProjectsService,
+  TasksService,
 ];
 
 @Module({ providers: services, exports: services })

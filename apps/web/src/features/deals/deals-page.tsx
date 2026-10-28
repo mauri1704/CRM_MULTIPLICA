@@ -21,6 +21,8 @@ import { Card, EmptyState, PageHeader, Spinner } from '@/components/ui/misc';
 import { TabPanel, Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { DataActions } from '@/features/import-export/data-actions';
+import { ActivitiesPanel } from '@/features/activities/activities-panel';
+import { RelatedTasks } from '@/features/tasks/related-tasks';
 import { CommentsPanel } from '@/features/sales/comments-panel';
 import { KanbanBoard } from '@/features/sales/kanban-board';
 import { LinesEditor } from '@/features/sales/lines-editor';
@@ -745,6 +747,8 @@ function DealForm({
           items={[
             { value: 'datos', label: 'Datos' },
             { value: 'productos', label: `Productos (${deal.products?.length ?? 0})` },
+            { value: 'tareas', label: 'Tareas' },
+            { value: 'actividad', label: 'Actividad' },
             { value: 'comentarios', label: 'Comentarios' },
           ]}
         >
@@ -780,6 +784,14 @@ function DealForm({
                 }
               }}
             />
+          </TabPanel>
+          <TabPanel value="tareas">
+            {tab === 'tareas' && (
+              <RelatedTasks target={{ type: 'DEAL', id: deal.id, name: deal.title }} />
+            )}
+          </TabPanel>
+          <TabPanel value="actividad">
+            {tab === 'actividad' && <ActivitiesPanel type="DEAL" id={deal.id} />}
           </TabPanel>
           <TabPanel value="comentarios">
             {tab === 'comentarios' && <CommentsPanel type="DEAL" id={deal.id} />}

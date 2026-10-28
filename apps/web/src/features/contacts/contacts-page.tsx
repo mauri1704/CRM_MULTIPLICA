@@ -19,8 +19,12 @@ import { Field } from '@/components/ui/field';
 import { FormMessage } from '@/components/ui/form-message';
 import { Input, Select, Textarea } from '@/components/ui/input';
 import { Card, EmptyState, PageHeader, Spinner } from '@/components/ui/misc';
+import { TabPanel, Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
+import { ActivitiesPanel } from '@/features/activities/activities-panel';
 import { DataActions } from '@/features/import-export/data-actions';
+import { CommentsPanel } from '@/features/sales/comments-panel';
+import { RelatedTasks } from '@/features/tasks/related-tasks';
 import { ApiError, api } from '@/lib/api';
 import { useAuth, useUser } from '@/lib/auth';
 import { formatDate } from '@/lib/format';
@@ -255,6 +259,7 @@ function ContactForm({ contact, onClose }: { contact: Contact | null; onClose: (
   const defs = useCustomFields('CONTACT');
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [tab, setTab] = useState('datos');
   const [company, setCompany] = useState<PickerOption | null>(
     contact?.company ? { id: contact.company.id, label: contact.company.legalName } : null,
   );
@@ -304,6 +309,112 @@ function ContactForm({ contact, onClose }: { contact: Contact | null; onClose: (
     }
   });
 
+  const formBody = (
+    <form id="contact-form" onSubmit={onSubmit} noValidate className="space-y-5">
+      <FormMessage error={error} />
+      <fieldset disabled={!editable} className="space-y-5">
+        <fieldset className="space-y-4 rounded-md border border-border p-4">
+          <legend className="px-1 text-sm font-semibold">Datos personales</legend>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Nombre" error={e.firstName?.message} required>
+              <Input autoComplete="off" {...form.register('firstName')} />
+            </Field>
+            <Field label="Apellidos" error={e.lastName?.message}>
+              <Input autoComplete="off" {...form.register('lastName')} />
+            </Field>
+            <Field label="Tipo de documento" error={e.documentTypeId?.message}>
+              <Select {...form.register('documentTypeId')}>
+                <option value="">—</option>
+                {docTypes.data?.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Número de documento" error={e.documentNumber?.message}>
+              <Input autoComplete="off" {...form.register('documentNumber')} />
+            </Field>
+          </div>
+        </fieldset>
+        <fieldset className="space-y-4 rounded-md border border-border p-4">
+          <legend className="px-1 text-sm font-semibold">Contacto y empresa</legend>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Correo" error={e.email?.message}>
+              <Input type="email" autoComplete="off" {...form.register('email')} />
+            </Field>
+            <Field label="Teléfono" error={e.phone?.message}>
+              <Input type="tel" autoComplete="off" {...form.register('phone')} />
+            </Field>
+            <Field label="Compañía principal" error={e.companyId?.message}>
+              <EntityPicker
+                value={company}
+                onChange={setCompany}
+                search={searchCompanies}
+                queryKey="companies"
+                placeholder="Buscar compañía…"
+              />
+            </Field>
+            <Field label="Cargo" error={e.jobTitle?.message}>
+              <Input {...form.register('jobTitle')} />
+            </Field>
+          </div>
+          <div>
+            <p className="mb-1.5 text-sm font-medium">Compañías relacionadas</p>
+            <ul className="mb-2 flex flex-wrap gap-2">
+              {related.map((r) => (
+                <li
+                  key={r.id}
+                  className="flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-xs"
+                >
+                  <Link to={`/companias?id=${r.id}`} className="hover:underline">
+                    {r.label}
+                  </Link>
+                  <button
+                    type="button"
+                    aria-label={`Quitar ${r.label}`}
+                    onClick={() => setRelated(related.filter((x) => x.id !== r.id))}
+                  >
+                    <X className="h-3 w-3" aria-hidden />
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <EntityPicker
+              value={null}
+              onChange={(c) =>
+                c && !related.some((r) => r.id === c.id) && setRelated([...related, c])
+              }
+              search={searchCompanies}
+              queryKey="companies"
+              placeholder="Agregar compañía relacionada…"
+            />
+          </div>
+        </fieldset>
+        <fieldset className="space-y-4 rounded-md border border-border p-4">
+          <legend className="px-1 text-sm font-semibold">Gestión</legend>
+          <Field label="Responsable" error={e.ownerId?.message}>
+            <Select {...form.register('ownerId')}>
+              {users.data?.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Observaciones" error={e.notes?.message}>
+            <Textarea rows={3} {...form.register('notes')} />
+          </Field>
+        </fieldset>
+        <CustomFieldInputs
+          entityType="CONTACT"
+          register={form.register}
+          errors={form.formState.errors}
+        />
+      </fieldset>
+    </form>
+  );
+
   return (
     <Drawer
       open
@@ -316,7 +427,8 @@ function ContactForm({ contact, onClose }: { contact: Contact | null; onClose: (
       }
       confirmClose={form.formState.isDirty}
       footer={
-        editable && (
+        editable &&
+        tab === 'datos' && (
           <>
             <Button variant="secondary" onClick={onClose}>
               Cancelar
@@ -339,109 +451,35 @@ function ContactForm({ contact, onClose }: { contact: Contact | null; onClose: (
           )}
         </div>
       )}
-      <form id="contact-form" onSubmit={onSubmit} noValidate className="space-y-5">
-        <FormMessage error={error} />
-        <fieldset disabled={!editable} className="space-y-5">
-          <fieldset className="space-y-4 rounded-md border border-border p-4">
-            <legend className="px-1 text-sm font-semibold">Datos personales</legend>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Nombre" error={e.firstName?.message} required>
-                <Input autoComplete="off" {...form.register('firstName')} />
-              </Field>
-              <Field label="Apellidos" error={e.lastName?.message}>
-                <Input autoComplete="off" {...form.register('lastName')} />
-              </Field>
-              <Field label="Tipo de documento" error={e.documentTypeId?.message}>
-                <Select {...form.register('documentTypeId')}>
-                  <option value="">—</option>
-                  {docTypes.data?.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.name}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label="Número de documento" error={e.documentNumber?.message}>
-                <Input autoComplete="off" {...form.register('documentNumber')} />
-              </Field>
-            </div>
-          </fieldset>
-          <fieldset className="space-y-4 rounded-md border border-border p-4">
-            <legend className="px-1 text-sm font-semibold">Contacto y empresa</legend>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Correo" error={e.email?.message}>
-                <Input type="email" autoComplete="off" {...form.register('email')} />
-              </Field>
-              <Field label="Teléfono" error={e.phone?.message}>
-                <Input type="tel" autoComplete="off" {...form.register('phone')} />
-              </Field>
-              <Field label="Compañía principal" error={e.companyId?.message}>
-                <EntityPicker
-                  value={company}
-                  onChange={setCompany}
-                  search={searchCompanies}
-                  queryKey="companies"
-                  placeholder="Buscar compañía…"
-                />
-              </Field>
-              <Field label="Cargo" error={e.jobTitle?.message}>
-                <Input {...form.register('jobTitle')} />
-              </Field>
-            </div>
-            <div>
-              <p className="mb-1.5 text-sm font-medium">Compañías relacionadas</p>
-              <ul className="mb-2 flex flex-wrap gap-2">
-                {related.map((r) => (
-                  <li
-                    key={r.id}
-                    className="flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-xs"
-                  >
-                    <Link to={`/companias?id=${r.id}`} className="hover:underline">
-                      {r.label}
-                    </Link>
-                    <button
-                      type="button"
-                      aria-label={`Quitar ${r.label}`}
-                      onClick={() => setRelated(related.filter((x) => x.id !== r.id))}
-                    >
-                      <X className="h-3 w-3" aria-hidden />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              <EntityPicker
-                value={null}
-                onChange={(c) =>
-                  c && !related.some((r) => r.id === c.id) && setRelated([...related, c])
-                }
-                search={searchCompanies}
-                queryKey="companies"
-                placeholder="Agregar compañía relacionada…"
-              />
-            </div>
-          </fieldset>
-          <fieldset className="space-y-4 rounded-md border border-border p-4">
-            <legend className="px-1 text-sm font-semibold">Gestión</legend>
-            <Field label="Responsable" error={e.ownerId?.message}>
-              <Select {...form.register('ownerId')}>
-                {users.data?.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Observaciones" error={e.notes?.message}>
-              <Textarea rows={3} {...form.register('notes')} />
-            </Field>
-          </fieldset>
-          <CustomFieldInputs
-            entityType="CONTACT"
-            register={form.register}
-            errors={form.formState.errors}
-          />
-        </fieldset>
-      </form>
+      {contact ? (
+        <Tabs
+          value={tab}
+          onValueChange={setTab}
+          items={[
+            { value: 'datos', label: 'Datos' },
+            { value: 'tareas', label: 'Tareas' },
+            { value: 'actividad', label: 'Actividad' },
+            { value: 'comentarios', label: 'Comentarios' },
+          ]}
+        >
+          <TabPanel value="datos" forceMount hidden={tab !== 'datos'}>
+            {formBody}
+          </TabPanel>
+          <TabPanel value="tareas">
+            {tab === 'tareas' && (
+              <RelatedTasks target={{ type: 'CONTACT', id: contact.id, name: contact.fullName }} />
+            )}
+          </TabPanel>
+          <TabPanel value="actividad">
+            {tab === 'actividad' && <ActivitiesPanel type="CONTACT" id={contact.id} />}
+          </TabPanel>
+          <TabPanel value="comentarios">
+            {tab === 'comentarios' && <CommentsPanel type="CONTACT" id={contact.id} />}
+          </TabPanel>
+        </Tabs>
+      ) : (
+        formBody
+      )}
       {contact && (
         <ConfirmDialog
           open={confirmDelete}

@@ -6,14 +6,15 @@ import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Field } from '@/components/ui/field';
 import { FormMessage } from '@/components/ui/form-message';
-import { Input, Select } from '@/components/ui/input';
+import { Checkbox, Input, Select } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/misc';
 import { useToast } from '@/components/ui/toast';
 import { pickPipeline, usePipelines } from '@/features/sales/sales-shared';
 import { ApiError, api, errorMessage } from '@/lib/api';
 import { useCurrencies } from '@/lib/hooks';
 import { useMoney } from '@/lib/money';
-import type { Lead, Line } from '@/lib/types';
+import { useAuth } from '@/lib/auth';
+import type { Lead, Line, Page, Task } from '@/lib/types';
 
 interface Preview {
   currencyCode: string;
@@ -32,6 +33,7 @@ export function ConvertDialog({ lead, onClose }: { lead: Lead; onClose: () => vo
   const toast = useToast();
   const navigate = useNavigate();
   const money = useMoney();
+  const { can } = useAuth();
   const pipelines = usePipelines('DEAL');
   const currencies = useCurrencies();
   const [title, setTitle] = useState(lead.title);
@@ -42,6 +44,13 @@ export function ConvertDialog({ lead, onClose }: { lead: Lead; onClose: () => vo
   const [error, setError] = useState<string | null>(null);
   const [details, setDetails] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  const [moveOpenTasks, setMoveOpenTasks] = useState(true);
+  const openTasks = useQuery({
+    queryKey: ['tasks', 'related', 'convert', lead.id],
+    queryFn: () =>
+      api.get<Page<Task>>('/tasks', { leadId: lead.id, open: 'true', rel: 'all', pageSize: 1 }),
+    enabled: can('tasks', 'view'),
+  });
 
   const pipeline = pickPipeline(pipelines.data, pipelineId);
   const openStages = pipeline?.stages.filter((s) => s.kind === 'OPEN' && s.active) ?? [];
@@ -59,16 +68,23 @@ export function ConvertDialog({ lead, onClose }: { lead: Lead; onClose: () => vo
     setError(null);
     setDetails({});
     try {
-      const r = await api.post<{ dealId: string; dealCode: string }>(`/leads/${lead.id}/convert`, {
-        title,
-        pipelineId: pipeline.id,
-        stageId: stage.id,
-        currencyCode,
-        expectedCloseDate,
-      });
+      const r = await api.post<{ dealId: string; dealCode: string; movedTasks: number }>(
+        `/leads/${lead.id}/convert`,
+        {
+          title,
+          pipelineId: pipeline.id,
+          stageId: stage.id,
+          currencyCode,
+          expectedCloseDate,
+          moveOpenTasks,
+        },
+      );
+      await qc.invalidateQueries({ queryKey: ['tasks'] });
       await qc.invalidateQueries({ queryKey: ['leads'] });
       await qc.invalidateQueries({ queryKey: ['deals'] });
-      toast.success(`Negociación ${r.dealCode} creada.`);
+      toast.success(
+        `Negociación ${r.dealCode} creada.${r.movedTasks ? ` ${r.movedTasks} tarea(s) abierta(s) pasaron a la negociación.` : ''}`,
+      );
       onClose();
       void navigate(`/negociaciones?id=${r.dealId}`);
     } catch (e) {
@@ -242,6 +258,15 @@ export function ConvertDialog({ lead, onClose }: { lead: Lead; onClose: () => vo
             <p className="text-fg-muted">Sin productos asociados.</p>
           )}
         </section>
+        {(openTasks.data?.total ?? 0) > 0 && (
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox
+              checked={moveOpenTasks}
+              onChange={(e) => setMoveOpenTasks(e.target.checked)}
+            />
+            Pasar sus {openTasks.data!.total} tarea(s) abierta(s) a la negociación
+          </label>
+        )}
         <p className="text-xs text-fg-muted">
           El prospecto quedará como «Convertido», en solo lectura y enlazado a la nueva negociación.
         </p>

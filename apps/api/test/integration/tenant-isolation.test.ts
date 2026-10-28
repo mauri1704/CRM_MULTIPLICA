@@ -89,6 +89,48 @@ describe('aislamiento entre organizaciones (API)', () => {
     expect(search.body.companies).toEqual([]);
   });
 
+  it('A no lee, edita ni borra tareas, proyectos ni actividades de B', async () => {
+    const adminB = await login(app, b.adminEmail);
+    const company = (await adminB.post('/companies', { legalName: 'Oculta B SAC' })).body;
+    const project = (await adminB.post('/projects', { name: 'Proyecto secreto B' })).body;
+    const task = (
+      await adminB.post('/tasks', {
+        title: 'Tarea secreta B',
+        projectId: project.id,
+        crm: { type: 'COMPANY', id: company.id },
+      })
+    ).body;
+    const activity = (
+      await adminB.post(`/activities/company/${company.id}`, {
+        type: 'NOTE',
+        subject: 'Nota secreta',
+        occurredAt: new Date().toISOString(),
+      })
+    ).body;
+    for (const path of [`/tasks/${task.id}`, `/projects/${project.id}`]) {
+      expect((await adminA.get(path)).status).toBe(404);
+      expect((await adminA.patch(path, { title: 'Robado', name: 'Robado' })).status).toBe(404);
+      expect((await adminA.delete(path)).status).toBe(404);
+    }
+    const statusId = (await adminA.get('/catalogs/task-statuses')).body[0].id;
+    expect((await adminA.put(`/tasks/${task.id}/status`, { statusId, index: 0 })).status).toBe(404);
+    expect((await adminA.get(`/comments/task/${task.id}`)).status).toBe(404);
+    expect((await adminA.get(`/activities/company/${company.id}`)).status).toBe(404);
+    expect((await adminA.delete(`/activities/${activity.id}`)).status).toBe(404);
+    // Una tarea de A no puede apuntar al proyecto ni a la compañía de B.
+    expect((await adminA.post('/tasks', { title: 'Mixta', projectId: project.id })).status).toBe(
+      400,
+    );
+    expect(
+      (await adminA.post('/tasks', { title: 'Mixta', crm: { type: 'COMPANY', id: company.id } }))
+        .status,
+    ).toBe(400);
+    const search = (await adminA.get('/search?q=secret')).body;
+    expect(search.tasks).toEqual([]);
+    expect(search.projects).toEqual([]);
+    expect((await adminA.get('/tasks?rel=all')).body.items).toEqual([]);
+  });
+
   it('A no puede asignar a su equipo un usuario de B ni dar a un usuario un rol de B', async () => {
     expect(
       (await adminA.post('/teams', { name: 'Mixto', memberIds: [b.adminUserId] })).status,
@@ -138,6 +180,10 @@ describe('Row-Level Security (segunda barrera, en la base de datos)', () => {
     'lead_products',
     'deal_products',
     'comments',
+    'projects',
+    'tasks',
+    'task_members',
+    'activities',
   ];
 
   it('todas las tablas de organización tienen RLS activo', async () => {

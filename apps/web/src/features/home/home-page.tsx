@@ -5,6 +5,8 @@ import {
   Building2,
   Contact,
   GitBranch,
+  FolderKanban,
+  ListTodo,
   Handshake,
   Target,
   KeyRound,
@@ -41,6 +43,20 @@ const SHORTCUTS: Shortcut[] = [
     description: 'Pipeline comercial hasta el cierre',
     icon: Handshake,
     permission: ['deals', 'view'],
+  },
+  {
+    to: '/tareas',
+    label: 'Tareas',
+    description: 'Tablero, lista y calendario de pendientes',
+    icon: ListTodo,
+    permission: ['tasks', 'view'],
+  },
+  {
+    to: '/proyectos',
+    label: 'Proyectos',
+    description: 'Tareas agrupadas por objetivo',
+    icon: FolderKanban,
+    permission: ['projects', 'view'],
   },
   {
     to: '/contactos',
@@ -135,9 +151,10 @@ export function HomePage() {
         <h2 className="font-semibold">Ciclo comercial disponible</h2>
         <p className="mt-1 text-sm text-fg-muted">
           Registre prospectos, conviértalos en negociaciones y llévelas por el tablero hasta
-          ganarlas o perderlas, con productos en varias monedas y tipos de cambio trazables. Tareas,
-          proyectos y el dashboard con indicadores llegan en las siguientes fases. Use la búsqueda
-          de arriba (Ctrl+K) para encontrar cualquier registro.
+          ganarlas o perderlas, con productos en varias monedas y tipos de cambio trazables.
+          Organice el trabajo con tareas (tablero, lista y calendario) y proyectos, y registre
+          llamadas y reuniones en cada ficha. El dashboard con indicadores llega en una fase
+          siguiente. Use la búsqueda de arriba (Ctrl+K) para encontrar cualquier registro.
         </p>
       </Card>
       {shortcuts.length > 0 && (

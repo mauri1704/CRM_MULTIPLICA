@@ -8,6 +8,8 @@ import {
   FileSpreadsheet,
   Package,
   GitBranch,
+  FolderKanban,
+  ListTodo,
   Handshake,
   Target,
   Home,
@@ -34,6 +36,8 @@ export interface NavItem {
 export const IMPORT_PERMISSIONS: [PermissionModule, PermissionAction][] = [
   ['leads', 'import'],
   ['deals', 'import'],
+  ['tasks', 'import'],
+  ['projects', 'import'],
   ['contacts', 'import'],
   ['companies', 'import'],
   ['products', 'import'],
@@ -61,6 +65,18 @@ export const NAV: NavSection[] = [
       },
       { to: '/contactos', label: 'Contactos', icon: Contact, permission: ['contacts', 'view'] },
       { to: '/companias', label: 'Compañías', icon: Building, permission: ['companies', 'view'] },
+    ],
+  },
+  {
+    title: 'Operación',
+    items: [
+      { to: '/tareas', label: 'Tareas', icon: ListTodo, permission: ['tasks', 'view'] },
+      {
+        to: '/proyectos',
+        label: 'Proyectos',
+        icon: FolderKanban,
+        permission: ['projects', 'view'],
+      },
     ],
   },
   {

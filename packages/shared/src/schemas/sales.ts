@@ -166,6 +166,8 @@ export const convertLeadInput = z.object({
   stageId: uuid,
   currencyCode: currencyCode.optional(),
   expectedCloseDate: isoDate,
+  /** Pasar las tareas abiertas del prospecto a la nueva negociación (por defecto, sí). */
+  moveOpenTasks: z.boolean().default(true),
 });
 export type ConvertLeadInput = z.infer<typeof convertLeadInput>;
 
@@ -173,7 +175,7 @@ export type ConvertLeadInput = z.infer<typeof convertLeadInput>;
 // Comentarios
 // ---------------------------------------------------------------------------
 
-export const COMMENT_TARGETS = ['LEAD', 'DEAL', 'CONTACT', 'COMPANY'] as const;
+export const COMMENT_TARGETS = ['LEAD', 'DEAL', 'CONTACT', 'COMPANY', 'TASK'] as const;
 export type CommentTarget = (typeof COMMENT_TARGETS)[number];
 
 export const commentInput = z.object({

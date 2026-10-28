@@ -41,6 +41,10 @@ import { CommentsController } from './modules/comments/comments.controller';
 import { CommentsService } from './modules/comments/comments.service';
 import { DealsController } from './modules/deals/deals.controller';
 import { LeadsController } from './modules/leads/leads.controller';
+import { ActivitiesController } from './modules/activities/activities.controller';
+import { ActivitiesService } from './modules/activities/activities.service';
+import { ProjectsController } from './modules/projects/projects.controller';
+import { TasksController } from './modules/tasks/tasks.controller';
 
 export const loggerModule = LoggerModule.forRoot({
   pinoHttp: {
@@ -99,6 +103,9 @@ export const loggerModule = LoggerModule.forRoot({
     LeadsController,
     DealsController,
     CommentsController,
+    ProjectsController,
+    TasksController,
+    ActivitiesController,
   ],
   providers: [
     AuthService,
@@ -110,6 +117,7 @@ export const loggerModule = LoggerModule.forRoot({
     ImportExportService,
     ImportExportRegistry,
     CommentsService,
+    ActivitiesService,
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: AuthGuard },

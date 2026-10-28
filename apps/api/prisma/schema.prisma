@@ -63,6 +63,11 @@ model User {
   ownedLeads Lead[] @relation("LeadOwner")
   ownedDeals Deal[] @relation("DealOwner")
 
+  ownedProjects    Project[]    @relation("ProjectOwner")
+  responsibleTasks Task[]       @relation("TaskResponsible")
+  taskMemberships  TaskMember[]
+  activities       Activity[]
+
   @@index([organizationId, active])
   @@map("users")
 }
@@ -235,6 +240,8 @@ model Priority {
   leads Lead[]
   deals Deal[]
 
+  tasks Task[]
+
   @@unique([organizationId, name])
   @@map("priorities")
 }
@@ -313,6 +320,8 @@ model TaskStatus {
   active         Boolean  @default(true)
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  tasks Task[]
 
   @@unique([organizationId, name])
   @@map("task_statuses")
@@ -550,6 +559,8 @@ model Product {
   dealProducts DealProduct[]
 
   @@index([organizationId, deletedAt, name])
+  @@index([nameNorm(ops: raw("gin_trgm_ops"))], type: Gin, map: "products_name_trgm")
+  @@index([customFields(ops: JsonbOps)], type: Gin, map: "products_custom_fields_idx")
   @@map("products")
 }
 
@@ -594,8 +605,14 @@ model Company {
   deals    Deal[]
   comments Comment[]
 
+  tasks      Task[]
+  activities Activity[]
+
+  @@unique([organizationId, code], map: "companies_code_key")
   @@index([organizationId, deletedAt, legalName])
   @@index([organizationId, ownerId])
+  @@index([searchNorm(ops: raw("gin_trgm_ops"))], type: Gin, map: "companies_search_trgm")
+  @@index([customFields(ops: JsonbOps)], type: Gin, map: "companies_custom_fields_idx")
   @@map("companies")
 }
 
@@ -635,9 +652,15 @@ model Contact {
   dealContacts DealContact[]
   comments     Comment[]
 
+  tasks      Task[]
+  activities Activity[]
+
+  @@unique([organizationId, code], map: "contacts_code_key")
   @@index([organizationId, deletedAt, firstName])
   @@index([organizationId, ownerId])
   @@index([organizationId, companyId])
+  @@index([searchNorm(ops: raw("gin_trgm_ops"))], type: Gin, map: "contacts_search_trgm")
+  @@index([customFields(ops: JsonbOps)], type: Gin, map: "contacts_custom_fields_idx")
   @@map("contacts")
 }
 
@@ -745,9 +768,15 @@ model Lead {
   deal       Deal?
   comments   Comment[]
 
+  tasks      Task[]
+  activities Activity[]
+
+  @@unique([organizationId, code], map: "leads_code_key")
   @@index([organizationId, pipelineId, stageId, stagePosition])
   @@index([organizationId, deletedAt, createdAt])
   @@index([organizationId, ownerId])
+  @@index([searchNorm(ops: raw("gin_trgm_ops"))], type: Gin, map: "leads_search_trgm")
+  @@index([customFields(ops: JsonbOps)], type: Gin, map: "leads_custom_fields_idx")
   @@map("leads")
 }
 
@@ -801,10 +830,16 @@ model Deal {
   products   DealProduct[]
   comments   Comment[]
 
+  tasks      Task[]
+  activities Activity[]
+
+  @@unique([organizationId, code], map: "deals_code_key")
   @@index([organizationId, pipelineId, stageId, stagePosition])
   @@index([organizationId, deletedAt, createdAt])
   @@index([organizationId, ownerId])
   @@index([organizationId, status, closedAt])
+  @@index([searchNorm(ops: raw("gin_trgm_ops"))], type: Gin, map: "deals_search_trgm")
+  @@index([customFields(ops: JsonbOps)], type: Gin, map: "deals_custom_fields_idx")
   @@map("deals")
 }
 
@@ -901,6 +936,7 @@ model Comment {
   dealId         String?   @map("deal_id") @db.Uuid
   contactId      String?   @map("contact_id") @db.Uuid
   companyId      String?   @map("company_id") @db.Uuid
+  taskId         String?   @map("task_id") @db.Uuid
   body           String
   authorId       String    @map("author_id") @db.Uuid
   mentions       String[]  @default([]) @db.Uuid
@@ -912,10 +948,151 @@ model Comment {
   deal    Deal?    @relation(fields: [dealId], references: [id], onDelete: Cascade)
   contact Contact? @relation(fields: [contactId], references: [id], onDelete: Cascade)
   company Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  task    Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, leadId, createdAt])
   @@index([organizationId, dealId, createdAt])
   @@index([organizationId, contactId, createdAt])
   @@index([organizationId, companyId, createdAt])
+  @@index([organizationId, taskId, createdAt])
   @@map("comments")
+}
+
+// ---------------------------------------------------------------------------
+// Fase 4 — Proyectos, tareas y actividades
+// ---------------------------------------------------------------------------
+
+model Project {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  code           String    @db.VarChar(20)
+  name           String    @db.VarChar(200)
+  nameNorm       String    @map("name_norm") @db.VarChar(200)
+  description    String?
+  ownerId        String?   @map("owner_id") @db.Uuid
+  /// PLANNED | ACTIVE | ON_HOLD | CLOSED
+  status         String    @default("PLANNED") @db.VarChar(15)
+  startDate      DateTime? @map("start_date") @db.Date
+  endDate        DateTime? @map("end_date") @db.Date
+  version        Int       @default(0)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById    String?   @map("created_by_id") @db.Uuid
+  updatedById    String?   @map("updated_by_id") @db.Uuid
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
+  deletedById    String?   @map("deleted_by_id") @db.Uuid
+
+  owner User?  @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  tasks Task[]
+
+  @@unique([organizationId, code], map: "projects_code_key")
+  @@index([organizationId, deletedAt, name])
+  @@index([organizationId, ownerId])
+  @@index([nameNorm(ops: raw("gin_trgm_ops"))], type: Gin, map: "projects_name_trgm")
+  @@map("projects")
+}
+
+model Task {
+  id                String    @id @default(uuid(7)) @db.Uuid
+  organizationId    String    @map("organization_id") @db.Uuid
+  code              String    @db.VarChar(20)
+  title             String    @db.VarChar(200)
+  description       String?
+  responsibleId     String    @map("responsible_id") @db.Uuid
+  startAt           DateTime? @map("start_at") @db.Timestamptz(3)
+  dueAt             DateTime? @map("due_at") @db.Timestamptz(3)
+  priorityId        String?   @map("priority_id") @db.Uuid
+  statusId          String    @map("status_id") @db.Uuid
+  /// Orden dentro de la columna del Kanban (fraccionario para insertar sin renumerar).
+  statusPosition    Float     @default(0) @map("status_position")
+  projectId         String?   @map("project_id") @db.Uuid
+  completedAt       DateTime? @map("completed_at") @db.Timestamptz(3)
+  /// Elemento CRM asociado: como máximo uno (D-26).
+  contactId         String?   @map("contact_id") @db.Uuid
+  companyId         String?   @map("company_id") @db.Uuid
+  leadId            String?   @map("lead_id") @db.Uuid
+  dealId            String?   @map("deal_id") @db.Uuid
+  /// Último aviso de vencimiento enviado (el aviso diario es idempotente).
+  overdueNotifiedAt DateTime? @map("overdue_notified_at") @db.Timestamptz(3)
+  customFields      Json      @default("{}") @map("custom_fields")
+  searchNorm        String    @default("") @map("search_norm")
+  version           Int       @default(0)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById       String?   @map("created_by_id") @db.Uuid
+  updatedById       String?   @map("updated_by_id") @db.Uuid
+  deletedAt         DateTime? @map("deleted_at") @db.Timestamptz(3)
+  deletedById       String?   @map("deleted_by_id") @db.Uuid
+
+  responsible User         @relation("TaskResponsible", fields: [responsibleId], references: [id], onDelete: Restrict)
+  priority    Priority?    @relation(fields: [priorityId], references: [id], onDelete: Restrict)
+  status      TaskStatus   @relation(fields: [statusId], references: [id], onDelete: Restrict)
+  project     Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  contact     Contact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  company     Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  lead        Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  deal        Deal?        @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  members     TaskMember[]
+  comments    Comment[]
+
+  @@unique([organizationId, code], map: "tasks_code_key")
+  @@index([organizationId, statusId, statusPosition])
+  @@index([organizationId, responsibleId, dueAt])
+  @@index([organizationId, deletedAt, dueAt])
+  @@index([organizationId, projectId])
+  @@index([organizationId, contactId])
+  @@index([organizationId, companyId])
+  @@index([organizationId, leadId])
+  @@index([organizationId, dealId])
+  @@index([searchNorm(ops: raw("gin_trgm_ops"))], type: Gin, map: "tasks_search_trgm")
+  @@index([customFields(ops: JsonbOps)], type: Gin, map: "tasks_custom_fields_idx")
+  @@map("tasks")
+}
+
+model TaskMember {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  taskId         String   @map("task_id") @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  /// PARTICIPANT | OBSERVER
+  role           String   @db.VarChar(12)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([taskId, userId])
+  @@index([organizationId, userId, role])
+  @@map("task_members")
+}
+
+/// Interacciones registradas a mano (llamada, reunión, correo, nota) — D-23. No son tareas.
+model Activity {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  /// CALL | MEETING | EMAIL | NOTE
+  type           String    @db.VarChar(10)
+  subject        String    @db.VarChar(200)
+  notes          String?
+  occurredAt     DateTime  @map("occurred_at") @db.Timestamptz(3)
+  authorId       String    @map("author_id") @db.Uuid
+  leadId         String?   @map("lead_id") @db.Uuid
+  dealId         String?   @map("deal_id") @db.Uuid
+  contactId      String?   @map("contact_id") @db.Uuid
+  companyId      String?   @map("company_id") @db.Uuid
+  editedAt       DateTime? @map("edited_at") @db.Timestamptz(3)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  author  User     @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  lead    Lead?    @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  deal    Deal?    @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  contact Contact? @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  company Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, leadId, occurredAt])
+  @@index([organizationId, dealId, occurredAt])
+  @@index([organizationId, contactId, occurredAt])
+  @@index([organizationId, companyId, occurredAt])
+  @@map("activities")
 }

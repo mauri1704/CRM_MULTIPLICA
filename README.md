@@ -16,8 +16,9 @@ motor de automatizaciones comerciales.
 | 1 — Base del sistema                                          | ✅ Entregada (ver abajo) |
 | 2 — Contactos, compañías, productos, monedas, tipos de cambio | ✅ Entregada (ver abajo) |
 | 3 — Prospectos, negociaciones, conversión                     | ✅ Entregada (ver abajo) |
-| 4 — Tareas y proyectos                                        | Siguiente                |
-| 5 y 6                                                         | Pendientes               |
+| 4 — Tareas, proyectos y actividades                           | ✅ Entregada (ver abajo) |
+| 5 — Duplicados y papelera completa                            | Siguiente                |
+| 6 — Dashboard, reportes y despliegue                          | Pendiente                |
 
 ### Fase 1 — qué incluye
 
@@ -82,6 +83,28 @@ motor de automatizaciones comerciales.
 - **Comentarios** con menciones que notifican; búsqueda global e importación/exportación también
   para prospectos y negociaciones.
 - **Calidad:** 90 pruebas de integración y 14 E2E.
+
+### Fase 4 — qué incluye
+
+- **Tareas** (`TAR-`): responsable, participantes y observadores, inicio y vencimiento (el
+  vencimiento no puede ser anterior), prioridad, estado configurable (completar registra la fecha),
+  proyecto y como máximo un elemento CRM asociado (contacto, compañía, prospecto o negociación).
+- **Roles en la tarea, validados en la API:** el responsable (o quien tenga alcance de equipo/todos)
+  edita; el participante cambia el estado y comenta; el observador ve y comenta.
+- **Tres vistas:** tablero por estado (arrastrar cambia el estado), lista con orden y paginación, y
+  calendario mes/semana/día donde arrastrar o estirar cambia las fechas. Filtros Mis tareas,
+  Participo, Observo y Todas, más prioridad, proyecto y «solo abiertas».
+- **Proyectos** (`PRY-`): responsable, estado, fechas, tareas del proyecto; papelera e historial.
+- **En cada ficha CRM:** pestañas _Tareas_ (con alta ya asociada) y _Actividad_ para registrar a
+  mano llamadas, reuniones, correos y notas (D-23). Al convertir un prospecto, sus tareas abiertas
+  pueden pasar a la negociación.
+- **Notificaciones:** asignación como responsable, participante u observador; menciones; aviso
+  diario de tareas vencidas al responsable (worker, una vez por día).
+- Importación/exportación y búsqueda global también para tareas y proyectos.
+- **Corrección:** la migración de la fase 3 había eliminado índices creados a mano en la fase 2
+  (código único de contactos y compañías, búsqueda y campos personalizados). La migración de la
+  fase 4 los recrea y ahora están declarados en `schema.prisma`; una prueba verifica que existan.
+- **Calidad:** 106 pruebas de integración y 17 E2E.
 
 ## Puesta en marcha
 

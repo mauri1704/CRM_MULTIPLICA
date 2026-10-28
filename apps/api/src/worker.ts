@@ -7,7 +7,7 @@ loadDotEnv();
  * Worker (pg-boss). Solo procesos técnicos o de mantenimiento aprobados en D-16 — nunca
  * automatizaciones comerciales:
  * - `trash.purge-expired`: purga diaria de la papelera según la retención de cada organización.
- * Las importaciones/exportaciones (Fase 2) y los avisos de tareas vencidas (Fase 4) se suman aquí.
+ * - `tasks.notify-overdue`: aviso diario de tareas vencidas al responsable.
  */
 async function main() {
   const { NestFactory } = await import('@nestjs/core');

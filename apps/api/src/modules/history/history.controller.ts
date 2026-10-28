@@ -24,6 +24,8 @@ const MODULE_BY_ENTITY: Partial<Record<EntityType, PermissionModule>> = {
   COMPANY: 'companies',
   LEAD: 'leads',
   DEAL: 'deals',
+  TASK: 'tasks',
+  PROJECT: 'projects',
 };
 
 @ApiTags('Historial')

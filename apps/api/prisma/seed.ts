@@ -1,10 +1,11 @@
 /**
- * Datos de demostración para desarrollo. Idempotente: si la organización demo existe, no hace nada.
+ * Datos de demostración para desarrollo. Idempotente: si la organización demo existe, solo agrega
+ * lo que falte de fases posteriores (proyectos, tareas, actividades).
  *   admin@multiplica.test      / Admin12345   (Administrador)
  *   supervisor@multiplica.test / Super12345   (Supervisor, equipo Ventas Lima)
  *   comercial@multiplica.test  / Venta12345   (Comercial, equipo Ventas Lima)
  */
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, type Prisma } from '@prisma/client';
 import { normalizeIdentifier, normalizeText } from '@crm/shared';
 import { hashPassword } from '../src/modules/auth/password';
 import { computeLine } from '../src/modules/sales/line-math';
@@ -17,8 +18,18 @@ async function main() {
     throw new Error('El seed de demostración no se ejecuta en producción.');
   const db = new PrismaClient();
   try {
-    if (await db.organization.findFirst({ where: { name: DEMO } })) {
-      console.log('La organización demo ya existe; no se modifica.');
+    const existing = await db.organization.findFirst({ where: { name: DEMO } });
+    if (existing) {
+      // Complemento por fase: agrega lo que falte sin tocar lo existente.
+      const added = await db.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT set_config('app.organization_id', ${existing.id}, true)`;
+        return seedOperations(tx, existing.id);
+      });
+      console.log(
+        added
+          ? 'La organización demo ya existía: se agregaron proyectos, tareas y actividades.'
+          : 'La organización demo ya existe; no se modifica.',
+      );
       return;
     }
     const { organizationId, adminUserId, roleIds } = await bootstrapOrganization(db, {
@@ -396,11 +407,187 @@ async function main() {
           { organizationId, entityType: 'DEAL', nextValue: deals.length + 1 },
         ],
       });
+      await seedOperations(tx, organizationId);
     });
     console.log('Organización demo creada.');
   } finally {
     await db.$disconnect();
   }
+}
+
+type Tx = Prisma.TransactionClient;
+
+/** Fase 4: un proyecto, tareas en varios estados y actividades. Devuelve false si ya existían. */
+async function seedOperations(tx: Tx, organizationId: string): Promise<boolean> {
+  if ((await tx.project.count({ where: { organizationId } })) > 0) return false;
+  const user = async (email: string) =>
+    (await tx.user.findFirstOrThrow({ where: { organizationId, email } })).id;
+  const [admin, supervisor, sales] = await Promise.all([
+    user('admin@multiplica.test'),
+    user('supervisor@multiplica.test'),
+    user('comercial@multiplica.test'),
+  ]);
+  const statuses = await tx.taskStatus.findMany({
+    where: { organizationId },
+    orderBy: { position: 'asc' },
+  });
+  const status = (category: string) => statuses.find((s) => s.category === category)!;
+  const prio = async (name: string) =>
+    (await tx.priority.findFirst({ where: { organizationId, name } }))?.id ?? null;
+  const deal = (title: string) =>
+    tx.deal.findFirst({
+      where: { organizationId, title, deletedAt: null },
+      select: { id: true, code: true },
+    });
+  const contact = await tx.contact.findFirst({
+    where: { organizationId, deletedAt: null },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true, code: true },
+  });
+  const pacifico = await deal('Implementación CRM Pacífico');
+  const andes = await deal('Licencias Andes 2026');
+
+  const project = await tx.project.create({
+    data: {
+      organizationId,
+      code: 'PRY-000001',
+      name: 'Implementación CRM Pacífico',
+      nameNorm: normalizeText('Implementación CRM Pacífico'),
+      description:
+        'Puesta en marcha del CRM para Pacífico Retail: configuración, migración y capacitación.',
+      ownerId: supervisor,
+      status: 'ACTIVE',
+      startDate: new Date('2026-10-15T00:00:00Z'),
+      endDate: new Date('2026-12-15T00:00:00Z'),
+      createdById: admin,
+    },
+  });
+  const day = (offset: number, hour: number) => {
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() + offset);
+    d.setUTCHours(hour + 5, 0, 0, 0); // hora de Lima
+    return d;
+  };
+  const tasks = [
+    {
+      title: 'Enviar propuesta técnica',
+      who: supervisor,
+      st: 'IN_PROGRESS',
+      due: day(1, 17),
+      p: 'Alta',
+      dealId: pacifico?.id,
+      crm: pacifico?.code,
+      project: true,
+      members: [[sales, 'PARTICIPANT']],
+    },
+    {
+      title: 'Llamar para confirmar presupuesto',
+      who: sales,
+      st: 'OPEN',
+      due: day(-1, 11),
+      p: 'Urgente',
+      dealId: andes?.id,
+      crm: andes?.code,
+      members: [[supervisor, 'OBSERVER']],
+    },
+    {
+      title: 'Preparar migración de contactos',
+      who: sales,
+      st: 'OPEN',
+      start: day(2, 9),
+      due: day(4, 18),
+      p: 'Media',
+      project: true,
+      members: [],
+    },
+    {
+      title: 'Capacitación de usuarios clave',
+      who: supervisor,
+      st: 'REVIEW',
+      due: day(7, 10),
+      p: 'Media',
+      project: true,
+      members: [
+        [sales, 'PARTICIPANT'],
+        [admin, 'OBSERVER'],
+      ],
+    },
+    {
+      title: 'Reunión de arranque',
+      who: admin,
+      st: 'DONE',
+      due: day(-5, 10),
+      p: 'Baja',
+      project: true,
+      members: [[supervisor, 'PARTICIPANT']],
+    },
+    {
+      title: 'Actualizar datos del contacto',
+      who: sales,
+      st: 'OPEN',
+      due: day(3, 12),
+      p: 'Baja',
+      contactId: contact?.id,
+      crm: contact?.code,
+      members: [],
+    },
+  ] as const;
+  for (const [i, t] of tasks.entries()) {
+    const code = `TAR-${String(i + 1).padStart(6, '0')}`;
+    const st = status(t.st);
+    await tx.task.create({
+      data: {
+        organizationId,
+        code,
+        title: t.title,
+        responsibleId: t.who,
+        startAt: 'start' in t ? t.start : null,
+        dueAt: t.due,
+        priorityId: await prio(t.p),
+        statusId: st.id,
+        statusPosition: i * 1000,
+        projectId: 'project' in t ? project.id : null,
+        dealId: 'dealId' in t ? (t.dealId ?? null) : null,
+        contactId: 'contactId' in t ? (t.contactId ?? null) : null,
+        completedAt: st.category === 'DONE' ? t.due : null,
+        searchNorm: normalizeText(
+          [code, t.title, 'crm' in t ? t.crm : null].filter(Boolean).join(' '),
+        ),
+        createdById: admin,
+        members: {
+          create: t.members.map(([userId, role]) => ({ organizationId, userId, role })),
+        },
+      },
+    });
+  }
+  await tx.sequence.createMany({
+    data: [
+      { organizationId, entityType: 'TASK', nextValue: tasks.length + 1 },
+      { organizationId, entityType: 'PROJECT', nextValue: 2 },
+    ],
+    skipDuplicates: true,
+  });
+  if (pacifico) {
+    await tx.activity.createMany({
+      data: [
+        {
+          type: 'MEETING',
+          subject: 'Reunión de descubrimiento',
+          notes: 'Necesitan 20 usuarios y reportes por sede.',
+          occurredAt: day(-6, 10),
+          authorId: supervisor,
+        },
+        {
+          type: 'CALL',
+          subject: 'Seguimiento de la propuesta',
+          notes: null,
+          occurredAt: day(-2, 16),
+          authorId: supervisor,
+        },
+      ].map((a) => ({ ...a, organizationId, dealId: pacifico.id })),
+    });
+  }
+  return true;
 }
 
 main().catch((e: unknown) => {

@@ -19,6 +19,8 @@ import { CompaniesPage } from '@/features/companies/companies-page';
 import { ContactsPage } from '@/features/contacts/contacts-page';
 import { DealsPage } from '@/features/deals/deals-page';
 import { LeadsPage } from '@/features/leads/leads-page';
+import { ProjectsPage } from '@/features/projects/projects-page';
+import { TasksPage } from '@/features/tasks/tasks-page';
 import { ImportsPage } from '@/features/import-export/imports-page';
 import { CurrenciesPage } from '@/features/money/currencies-page';
 import { ExchangeRatesPage } from '@/features/money/exchange-rates-page';
@@ -49,6 +51,22 @@ export const router = createBrowserRouter([
         element: (
           <RequirePermission module="deals" action="view">
             <DealsPage />
+          </RequirePermission>
+        ),
+      },
+      {
+        path: 'tareas',
+        element: (
+          <RequirePermission module="tasks" action="view">
+            <TasksPage />
+          </RequirePermission>
+        ),
+      },
+      {
+        path: 'proyectos',
+        element: (
+          <RequirePermission module="projects" action="view">
+            <ProjectsPage />
           </RequirePermission>
         ),
       },

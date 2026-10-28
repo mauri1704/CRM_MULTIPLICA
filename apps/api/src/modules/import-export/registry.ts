@@ -9,6 +9,14 @@ import {
   normalizeEmail,
   normalizeIdentifier,
   productInput,
+  projectInput,
+  taskInput,
+  PROJECT_STATUSES,
+  PROJECT_STATUS_LABELS,
+  normalizeText,
+  type ProjectInput,
+  type TaskCrmType,
+  type TaskInput,
   type CompanyInput,
   type ContactInput,
   type DealInput,
@@ -38,12 +46,17 @@ import { CurrenciesService } from '../currencies/currencies.service';
 import { CustomFieldsService } from '../custom-fields/custom-fields.service';
 import { ExchangeRatesService } from '../exchange-rates/exchange-rates.service';
 import { ProductsService, productDto } from '../products/products.service';
+import { projectQuery } from '../projects/projects.controller';
+import { ProjectsService, projectDto } from '../projects/projects.service';
+import { taskQuery } from '../tasks/tasks.controller';
+import { TasksService, taskDto } from '../tasks/tasks.service';
 import {
   CF_PREFIX,
   customCellValue,
   customFieldInfos,
   parseBoolCell,
   parseDateCell,
+  parseDateTimeCell,
   parseNumberCell,
   type FieldErrors,
   type ImportExportDefinition,
@@ -104,6 +117,8 @@ export class ImportExportRegistry {
     private readonly customFields: CustomFieldsService,
     private readonly leads: LeadsService,
     private readonly deals: DealsService,
+    private readonly tasks: TasksService,
+    private readonly projects: ProjectsService,
   ) {}
 
   // Búsquedas por valores "humanos" de las celdas -------------------------------------------
@@ -175,6 +190,43 @@ export class ImportExportRegistry {
           select: { id: true },
         }),
       ),
+      taskStatus: memo((name) =>
+        this.db.tx.taskStatus.findFirst({
+          where: { organizationId: org, active: true, name: { equals: name, mode: 'insensitive' } },
+          select: { id: true },
+        }),
+      ),
+      /** Código (PRY-…) o nombre exacto. */
+      project: memo((v) =>
+        this.db.tx.project.findFirst({
+          where: {
+            organizationId: org,
+            deletedAt: null,
+            OR: [{ code: v.toUpperCase() }, { nameNorm: normalizeText(v) }],
+          },
+          select: { id: true },
+        }),
+      ),
+      /** Elemento CRM por su código: CON-, CIA-, PRO- o NEG-. */
+      crmByCode: memo(async (v): Promise<{ type: TaskCrmType; id: string } | null> => {
+        const code = v.trim().toUpperCase();
+        const where = { organizationId: org, deletedAt: null, code };
+        const prefix = code.slice(0, 4);
+        const found =
+          prefix === 'CON-'
+            ? await this.db.tx.contact.findFirst({ where, select: { id: true } })
+            : prefix === 'CIA-'
+              ? await this.db.tx.company.findFirst({ where, select: { id: true } })
+              : prefix === 'PRO-'
+                ? await this.db.tx.lead.findFirst({ where, select: { id: true } })
+                : prefix === 'NEG-'
+                  ? await this.db.tx.deal.findFirst({ where, select: { id: true } })
+                  : null;
+        const type = (
+          { 'CON-': 'CONTACT', 'CIA-': 'COMPANY', 'PRO-': 'LEAD', 'NEG-': 'DEAL' } as const
+        )[prefix as 'CON-'];
+        return found && type ? { type, id: found.id } : null;
+      }),
       user: memo((email) =>
         this.db.q.user.findFirst({
           where: { organizationId: org, email: email.toLowerCase(), active: true },
@@ -243,6 +295,10 @@ export class ImportExportRegistry {
         return this.currenciesDef() as ImportExportDefinition<unknown, unknown>;
       case 'exchange-rates':
         return this.ratesDef() as ImportExportDefinition<unknown, unknown>;
+      case 'tasks':
+        return (await this.tasksDef()) as ImportExportDefinition<unknown, unknown>;
+      case 'projects':
+        return this.projectsDef() as ImportExportDefinition<unknown, unknown>;
     }
   }
 
@@ -294,6 +350,312 @@ export class ImportExportRegistry {
       if (estimatedValue === undefined) errors.estimatedValue = 'Valor no válido.';
     }
     return { companyId, ownerId, priorityId, estimatedValue };
+  }
+
+  /** Varios correos de usuario separados por «;» o «,». */
+  private async users(
+    lk: ReturnType<ImportExportRegistry['lookups']>,
+    raw: string | undefined,
+    field: string,
+    errors: FieldErrors,
+  ): Promise<string[]> {
+    const out: string[] = [];
+    for (const email of (raw ?? '')
+      .split(/[;,]/)
+      .map((e) => e.trim())
+      .filter(Boolean)) {
+      const u = await lk.user(email);
+      if (u) out.push(u.id);
+      else errors[field] = `No hay un usuario activo con el correo ${email}.`;
+    }
+    return out;
+  }
+
+  // --- Tareas ---------------------------------------------------------------------------------
+
+  private async tasksDef(): Promise<
+    ImportExportDefinition<TaskInput & { code?: string }, ReturnType<typeof taskDto>>
+  > {
+    const lk = this.lookups();
+    const defs = await this.customDefs('TASK');
+    const org = this.db.organizationId;
+    return {
+      entity: 'tasks',
+      module: 'tasks',
+      createAction: 'create',
+      updateAction: 'edit',
+      sheetName: 'Tareas',
+      fields: async () => [
+        {
+          key: 'code',
+          label: 'Código',
+          required: false,
+          hint: 'TAR-… para actualizar una tarea existente',
+        },
+        { key: 'title', label: 'Título', required: true },
+        { key: 'description', label: 'Descripción', required: false },
+        { key: 'responsible', label: 'Responsable', required: false, hint: 'Correo del usuario' },
+        {
+          key: 'participants',
+          label: 'Participantes',
+          required: false,
+          hint: 'Correos separados por ;',
+        },
+        {
+          key: 'observers',
+          label: 'Observadores',
+          required: false,
+          hint: 'Correos separados por ;',
+        },
+        { key: 'startAt', label: 'Inicio', required: false, hint: 'dd/mm/aaaa o dd/mm/aaaa hh:mm' },
+        {
+          key: 'dueAt',
+          label: 'Vencimiento',
+          required: false,
+          hint: 'dd/mm/aaaa o dd/mm/aaaa hh:mm',
+        },
+        { key: 'priority', label: 'Prioridad', required: false },
+        {
+          key: 'status',
+          label: 'Estado',
+          required: false,
+          hint: 'Vacío = primer estado pendiente',
+        },
+        { key: 'project', label: 'Proyecto', required: false, hint: 'Código PRY-… o nombre' },
+        {
+          key: 'related',
+          label: 'Asociado a',
+          required: false,
+          hint: 'Código CON-, CIA-, PRO- o NEG-',
+        },
+        ...customFieldInfos(defs),
+      ],
+      example: () => ({
+        code: '',
+        title: 'Llamar para confirmar la propuesta',
+        description: '',
+        responsible: '',
+        participants: '',
+        observers: '',
+        startAt: '',
+        dueAt: '15/11/2026 10:00',
+        priority: 'Alta',
+        status: '',
+        project: '',
+        related: 'NEG-000001',
+      }),
+      parse: async (v): Promise<ParsedRow<TaskInput & { code?: string }>> => {
+        const errors: FieldErrors = {};
+        const date = (key: 'startAt' | 'dueAt') => {
+          if (!blank(v[key])) return undefined;
+          const iso = parseDateTimeCell(v[key]!);
+          if (!iso) errors[key] = 'Fecha no válida (dd/mm/aaaa o dd/mm/aaaa hh:mm).';
+          return iso ?? undefined;
+        };
+        let responsibleId: string | undefined;
+        if (blank(v.responsible)) {
+          responsibleId = (await lk.user(v.responsible!.trim()))?.id;
+          if (!responsibleId)
+            errors.responsible = `No hay un usuario activo con el correo ${v.responsible}.`;
+        }
+        const participantIds = await this.users(lk, v.participants, 'participants', errors);
+        const observerIds = await this.users(lk, v.observers, 'observers', errors);
+        let priorityId: string | undefined;
+        if (blank(v.priority)) {
+          priorityId = (await lk.priority(v.priority!.trim()))?.id;
+          if (!priorityId) errors.priority = `Prioridad «${v.priority}» no existe.`;
+        }
+        let statusId: string | undefined;
+        if (blank(v.status)) {
+          statusId = (await lk.taskStatus(v.status!.trim()))?.id;
+          if (!statusId) errors.status = `Estado «${v.status}» no existe.`;
+        }
+        let projectId: string | undefined;
+        if (blank(v.project)) {
+          projectId = (await lk.project(v.project!.trim()))?.id;
+          if (!projectId) errors.project = `No se encontró el proyecto «${v.project}».`;
+        }
+        let crm: { type: TaskCrmType; id: string } | undefined;
+        if (blank(v.related)) {
+          crm = (await lk.crmByCode(v.related!)) ?? undefined;
+          if (!crm) errors.related = `No se encontró el registro «${v.related}».`;
+        }
+        const data = validate<TaskInput>(
+          taskInput,
+          {
+            title: v.title ?? '',
+            description: v.description,
+            responsibleId,
+            participantIds,
+            observerIds,
+            startAt: date('startAt'),
+            dueAt: date('dueAt'),
+            priorityId,
+            statusId,
+            projectId,
+            crm,
+            customFields: this.customInput(defs, v),
+          },
+          errors,
+        );
+        if (!data || Object.keys(errors).length > 0) return { ok: false, errors };
+        const code = blank(v.code)?.toUpperCase();
+        return { ok: true, data: { ...data, code }, key: code ? `task:${code}` : null };
+      },
+      findExisting: async (d) =>
+        d.code
+          ? this.db.tx.task
+              .findFirst({
+                where: { organizationId: org, deletedAt: null, code: d.code },
+                select: { id: true, responsibleId: true },
+              })
+              .then((t) => t && { id: t.id, ownerId: t.responsibleId })
+          : null,
+      check: async (d) => {
+        await this.customFields.validate('TASK', d.customFields);
+      },
+      create: async (user, { code: _c, ...d }) => {
+        await this.tasks.create(user, d);
+      },
+      update: async (user, existing, { code: _c, ...d }) => {
+        await this.tasks.update(user, existing.id, d);
+      },
+      exportColumns: async () => [
+        { key: 'code', label: 'Código', value: (r) => r.code },
+        { key: 'title', label: 'Título', value: (r) => r.title },
+        { key: 'description', label: 'Descripción', value: (r) => r.description },
+        { key: 'responsible', label: 'Responsable', value: (r) => r.responsible.name },
+        {
+          key: 'participants',
+          label: 'Participantes',
+          value: (r) => r.participants.map((p) => p.name).join('; '),
+        },
+        {
+          key: 'observers',
+          label: 'Observadores',
+          value: (r) => r.observers.map((p) => p.name).join('; '),
+        },
+        { key: 'startAt', label: 'Inicio', value: (r) => r.startAt },
+        { key: 'dueAt', label: 'Vencimiento', value: (r) => r.dueAt },
+        { key: 'priority', label: 'Prioridad', value: (r) => r.priority?.name },
+        { key: 'status', label: 'Estado', value: (r) => r.status.name },
+        { key: 'completedAt', label: 'Completada', value: (r) => r.completedAt },
+        { key: 'project', label: 'Proyecto', value: (r) => r.project?.name },
+        {
+          key: 'related',
+          label: 'Asociado a',
+          value: (r) => (r.crm ? `${r.crm.code} ${r.crm.name}` : null),
+        },
+        { key: 'createdAt', label: 'Fecha de creación', value: (r) => r.createdAt },
+        ...cfColumns<ReturnType<typeof taskDto>>(defs),
+      ],
+      exportRows: async (user, query, limit) => {
+        const where = await this.tasks.where(user, taskQuery.parse(query), 'export');
+        return (await this.tasks.listRaw(where, limit)).map((t) => taskDto(t, user.id));
+      },
+    };
+  }
+
+  // --- Proyectos ------------------------------------------------------------------------------
+
+  private projectsDef(): ImportExportDefinition<ProjectInput, ReturnType<typeof projectDto>> {
+    const lk = this.lookups();
+    const org = this.db.organizationId;
+    const statusByLabel = new Map<string, (typeof PROJECT_STATUSES)[number]>(
+      PROJECT_STATUSES.flatMap((s) => [
+        [s.toLowerCase(), s],
+        [normalizeText(PROJECT_STATUS_LABELS[s]), s],
+      ]),
+    );
+    return {
+      entity: 'projects',
+      module: 'projects',
+      createAction: 'create',
+      updateAction: 'edit',
+      sheetName: 'Proyectos',
+      fields: async () => [
+        { key: 'name', label: 'Nombre', required: true, hint: 'Clave de correspondencia' },
+        { key: 'description', label: 'Descripción', required: false },
+        { key: 'owner', label: 'Responsable', required: false, hint: 'Correo del usuario' },
+        {
+          key: 'status',
+          label: 'Estado',
+          required: false,
+          hint: Object.values(PROJECT_STATUS_LABELS).join(', '),
+        },
+        { key: 'startDate', label: 'Inicio', required: false, hint: 'dd/mm/aaaa' },
+        { key: 'endDate', label: 'Fin', required: false, hint: 'dd/mm/aaaa' },
+      ],
+      example: () => ({
+        name: 'Implementación CRM sede norte',
+        description: '',
+        owner: '',
+        status: 'En curso',
+        startDate: '01/11/2026',
+        endDate: '31/12/2026',
+      }),
+      parse: async (v): Promise<ParsedRow<ProjectInput>> => {
+        const errors: FieldErrors = {};
+        let ownerId: string | undefined;
+        if (blank(v.owner)) {
+          ownerId = (await lk.user(v.owner!.trim()))?.id;
+          if (!ownerId) errors.owner = `No hay un usuario activo con el correo ${v.owner}.`;
+        }
+        let status: (typeof PROJECT_STATUSES)[number] | undefined;
+        if (blank(v.status)) {
+          status =
+            statusByLabel.get(normalizeText(v.status)) ??
+            statusByLabel.get(v.status!.trim().toLowerCase());
+          if (!status) errors.status = `Estado «${v.status}» no válido.`;
+        }
+        const date = (key: 'startDate' | 'endDate') => {
+          if (!blank(v[key])) return undefined;
+          const d = parseDateCell(v[key]!);
+          if (!d) errors[key] = 'Fecha no válida.';
+          return d ?? undefined;
+        };
+        const data = validate<ProjectInput>(
+          projectInput,
+          {
+            name: v.name ?? '',
+            description: v.description,
+            ownerId,
+            status,
+            startDate: date('startDate'),
+            endDate: date('endDate'),
+          },
+          errors,
+        );
+        if (!data || Object.keys(errors).length > 0) return { ok: false, errors };
+        return { ok: true, data, key: `project:${normalizeText(data.name)}` };
+      },
+      findExisting: async (d) =>
+        this.db.tx.project.findFirst({
+          where: { organizationId: org, deletedAt: null, nameNorm: normalizeText(d.name) },
+          select: { id: true, ownerId: true },
+        }),
+      check: async () => {},
+      create: async (user, d) => {
+        await this.projects.create(user, d);
+      },
+      update: async (user, existing, { name: _n, ...d }) => {
+        await this.projects.update(user, existing.id, d);
+      },
+      exportColumns: async () => [
+        { key: 'code', label: 'Código', value: (r) => r.code },
+        { key: 'name', label: 'Nombre', value: (r) => r.name },
+        { key: 'description', label: 'Descripción', value: (r) => r.description },
+        { key: 'owner', label: 'Responsable', value: (r) => r.owner?.name },
+        { key: 'status', label: 'Estado', value: (r) => PROJECT_STATUS_LABELS[r.status] },
+        { key: 'startDate', label: 'Inicio', value: (r) => r.startDate },
+        { key: 'endDate', label: 'Fin', value: (r) => r.endDate },
+        { key: 'createdAt', label: 'Fecha de creación', value: (r) => r.createdAt },
+      ],
+      exportRows: async (user, query, limit) => {
+        const where = await this.projects.where(user, projectQuery.parse(query), 'export');
+        return (await this.projects.listRaw(where, limit)).map((p) => projectDto(p));
+      },
+    };
   }
 
   // --- Prospectos -----------------------------------------------------------------------------

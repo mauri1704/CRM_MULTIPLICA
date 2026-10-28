@@ -23,6 +23,7 @@ import { positionAt } from '../sales/board';
 import { LineItemsService, lineDto, type LineParent } from '../sales/line-items.service';
 import { computeLine } from '../sales/line-math';
 import { StagesService } from '../sales/stages';
+import { TasksService } from '../tasks/tasks.service';
 import { TrashService } from '../trash/trash.service';
 import type { TrashHandler } from '../trash/trash.types';
 
@@ -134,6 +135,7 @@ export class LeadsService implements OnModuleInit, TrashHandler {
     private readonly currencies: CurrenciesService,
     private readonly stages: StagesService,
     private readonly lines: LineItemsService,
+    private readonly tasks: TasksService,
   ) {}
 
   onModuleInit(): void {
@@ -758,7 +760,10 @@ export class LeadsService implements OnModuleInit, TrashHandler {
       },
       correlationId,
     );
-    return { dealId: deal.id, dealCode: deal.code };
+    const movedTasks = input.moveOpenTasks
+      ? await this.tasks.moveOpenFromLeadToDeal(user, id, deal.id, correlationId)
+      : 0;
+    return { dealId: deal.id, dealCode: deal.code, movedTasks };
   }
 
   // --- Papelera -------------------------------------------------------------------------------

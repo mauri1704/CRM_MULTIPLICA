@@ -3,21 +3,23 @@ import type { CommentInput, CommentTarget } from '@crm/shared';
 import type { AuthUser } from '../../common/auth.types';
 import { forbidden, notFound, validationError } from '../../common/errors';
 import { Db } from '../../infra/db';
-import { RecordScopeService } from '../access/record-scope.service';
+import { CrmRecordsService } from '../access/crm-records.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { TasksService } from '../tasks/tasks.service';
 
-const MODULE = { LEAD: 'leads', DEAL: 'deals', CONTACT: 'contacts', COMPANY: 'companies' } as const;
 const FIELD = {
   LEAD: 'leadId',
   DEAL: 'dealId',
   CONTACT: 'contactId',
   COMPANY: 'companyId',
+  TASK: 'taskId',
 } as const;
 const PATH = {
   LEAD: '/prospectos',
   DEAL: '/negociaciones',
   CONTACT: '/contactos',
   COMPANY: '/companias',
+  TASK: '/tareas',
 } as const;
 
 /** Comentarios en fichas. Quien puede ver el registro puede comentarlo; cada uno edita los suyos. */
@@ -25,39 +27,16 @@ const PATH = {
 export class CommentsService {
   constructor(
     private readonly db: Db,
-    private readonly scope: RecordScopeService,
     private readonly notifications: NotificationsService,
+    private readonly tasks: TasksService,
+    private readonly crm: CrmRecordsService,
   ) {}
 
   /** Comprueba que el registro existe, está vigente y lo puede ver; devuelve su nombre. */
   private async target(user: AuthUser, type: CommentTarget, id: string): Promise<string> {
-    const org = user.organizationId;
-    const where = { id, organizationId: org, deletedAt: null };
-    const rec =
-      type === 'LEAD'
-        ? await this.db.tx.lead
-            .findFirst({ where, select: { ownerId: true, code: true, title: true } })
-            .then((r) => r && { ownerId: r.ownerId, name: `${r.code} ${r.title}` })
-        : type === 'DEAL'
-          ? await this.db.tx.deal
-              .findFirst({ where, select: { ownerId: true, code: true, title: true } })
-              .then((r) => r && { ownerId: r.ownerId, name: `${r.code} ${r.title}` })
-          : type === 'CONTACT'
-            ? await this.db.tx.contact
-                .findFirst({ where, select: { ownerId: true, firstName: true, lastName: true } })
-                .then(
-                  (r) =>
-                    r && {
-                      ownerId: r.ownerId,
-                      name: [r.firstName, r.lastName].filter(Boolean).join(' '),
-                    },
-                )
-            : await this.db.tx.company
-                .findFirst({ where, select: { ownerId: true, legalName: true } })
-                .then((r) => r && { ownerId: r.ownerId, name: r.legalName });
-    if (!rec) throw notFound();
-    await this.scope.assert(user, MODULE[type], 'view', rec.ownerId);
-    return rec.name;
+    // Tareas: la ven responsable, participantes, observadores y el alcance del rol (T-02).
+    if (type === 'TASK') return (await this.tasks.assertVisible(user, id)).name;
+    return this.crm.assertVisible(user, type, id);
   }
 
   async list(user: AuthUser, type: CommentTarget, id: string) {

@@ -9,6 +9,8 @@ export const IMPORT_ENTITIES = [
   'products',
   'currencies',
   'exchange-rates',
+  'tasks',
+  'projects',
 ] as const;
 export type ImportEntity = (typeof IMPORT_ENTITIES)[number];
 
@@ -20,6 +22,8 @@ export const IMPORT_ENTITY_LABELS: Record<ImportEntity, string> = {
   products: 'Productos',
   currencies: 'Monedas',
   'exchange-rates': 'Tipos de cambio',
+  tasks: 'Tareas',
+  projects: 'Proyectos',
 };
 
 export const FILE_FORMATS = ['xlsx', 'csv'] as const;

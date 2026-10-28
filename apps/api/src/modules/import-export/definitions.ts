@@ -61,6 +61,22 @@ export function parseDateCell(v: string): string | null {
   return null;
 }
 
+/**
+ * Fecha con hora opcional (dd/mm/aaaa hh:mm o aaaa-mm-dd hh:mm), en hora de Lima (D-21), a ISO.
+ * Sin hora = 09:00.
+ */
+export function parseDateTimeCell(v: string): string | null {
+  const m = /^(.+?)(?:[ T](\d{1,2}):(\d{2}))?$/.exec(v.trim());
+  if (!m) return null;
+  const day = parseDateCell(m[1]!);
+  if (!day) return null;
+  const hh = Number(m[2] ?? 9);
+  const mm = Number(m[3] ?? 0);
+  if (hh > 23 || mm > 59) return null;
+  const iso = `${day}T${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:00-05:00`;
+  return Number.isNaN(new Date(iso).getTime()) ? null : new Date(iso).toISOString();
+}
+
 /** "1.234,56", "1,234.56", "1234.56" → "1234.56". */
 export function parseNumberCell(v: string): string | null {
   let s = v.trim().replace(/\s|[A-Za-z$/€]/g, '');
